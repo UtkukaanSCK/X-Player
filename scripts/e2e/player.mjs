@@ -1,12 +1,12 @@
 /**
- * Exercises the player through the site's playground the way a person would:
+ * Exercises the player through the development harness the way a person would:
  * press play, drag the bar, use the keyboard, open the menu, switch quality,
  * turn subtitles on.
  */
 import { chromium, devices } from 'playwright'
 
-const BASE = process.env.BASE_URL ?? 'http://localhost:5199'
-const V = '.play-stage video.xp-video'
+const BASE = process.env.BASE_URL ?? 'http://localhost:5173'
+const V = '[data-case="ladder"] video.xp-video'
 const failures = []
 const check = (name, ok, detail = '') => {
   console.log(`${ok ? 'PASS' : 'FAIL'}  ${name}${detail ? `  ${detail}` : ''}`)
@@ -35,16 +35,16 @@ const state = () =>
   }, V)
 
 await page.goto(BASE, { waitUntil: 'networkidle' })
-await page.locator('#try').scrollIntoViewIfNeeded()
+await page.locator('#ladder').scrollIntoViewIfNeeded()
 await page.waitForTimeout(1500)
 
-check('player mounted', (await page.locator('.play-stage .xp-root').count()) === 1)
+check('player mounted', (await page.locator('[data-case="ladder"] .xp-root').count()) === 1)
 const meta = await state()
 check('metadata loaded', meta.dur !== null && meta.err === null, JSON.stringify(meta))
 
 /* ------------------------------------------------------------- playback */
 
-await page.locator('.play-stage .xp-bigplay').click()
+await page.locator('[data-case="ladder"] .xp-bigplay').click()
 await page.waitForTimeout(2500)
 const playing = await state()
 check('plays', !playing.paused && playing.t > 0.5, JSON.stringify(playing))
@@ -52,14 +52,14 @@ check('plays', !playing.paused && playing.t > 0.5, JSON.stringify(playing))
 check(
   'progress bar is painted directly to the DOM',
   await page.evaluate(() => {
-    const el = document.querySelector('.play-stage .xp-seek-played')
+    const el = document.querySelector('[data-case="ladder"] .xp-seek-played')
     return !!el && /scaleX\(0?\.[0-9]/.test(el.style.transform)
   }),
 )
 
 /* ------------------------------------------------------------- keyboard */
 
-await page.locator('.play-stage .xp-root').focus()
+await page.locator('[data-case="ladder"] .xp-root').focus()
 const before = (await state()).t
 await page.keyboard.press('l')
 await page.waitForTimeout(500)
@@ -77,7 +77,7 @@ await page.keyboard.press('m')
 
 /* ---------------------------------------------------------------- seek */
 
-const bar = await page.locator('.play-stage .xp-seek').boundingBox()
+const bar = await page.locator('[data-case="ladder"] .xp-seek').boundingBox()
 await page.mouse.move(bar.x + bar.width * 0.1, bar.y + bar.height / 2)
 await page.mouse.down()
 await page.mouse.move(bar.x + bar.width * 0.6, bar.y + bar.height / 2, { steps: 12 })
@@ -88,20 +88,20 @@ check('dragging seeks to roughly 60%', scrubbed.t / scrubbed.dur > 0.45 && scrub
 
 /* ---------------------------------------------------------------- menu */
 
-await page.locator('.play-stage .xp-root').hover()
-await page.locator('.play-stage .xp-settings .xp-btn').click()
+await page.locator('[data-case="ladder"] .xp-root').hover()
+await page.locator('[data-case="ladder"] .xp-settings .xp-btn').click()
 await page.waitForTimeout(300)
-check('settings menu opens', (await page.locator('.play-stage .xp-menu').count()) > 0)
-await page.locator('.play-stage .xp-menu-item', { hasText: 'Playback speed' }).click()
+check('settings menu opens', (await page.locator('[data-case="ladder"] .xp-menu').count()) > 0)
+await page.locator('[data-case="ladder"] .xp-menu-item', { hasText: 'Playback speed' }).click()
 await page.waitForTimeout(250)
-await page.locator('.play-stage .xp-menu-option', { hasText: '1.5x' }).click()
+await page.locator('[data-case="ladder"] .xp-menu-option', { hasText: '1.5x' }).click()
 await page.waitForTimeout(300)
 check('speed changes to 1.5x', (await state()).rate === 1.5)
 await page.keyboard.press('Escape')
 
 /* ----------------------------------------------------------- subtitles */
 
-await page.locator('.play-stage .xp-root').focus()
+await page.locator('[data-case="ladder"] .xp-root').focus()
 await page.keyboard.press('c')
 await page.waitForTimeout(500)
 const cue = await page.evaluate((sel) => {
@@ -116,14 +116,14 @@ check('C turns subtitles on', cue !== null, cue ?? '(none)')
 // Quality has its own button on the bar: reaching it must take one click, not a
 // trip through the settings menu.
 await page.keyboard.press('Escape')
-await page.locator('.play-stage .xp-root').hover()
-const qualityBtn = page.locator('.play-stage .xp-quality .xp-btn-text')
+await page.locator('[data-case="ladder"] .xp-root').hover()
+const qualityBtn = page.locator('[data-case="ladder"] .xp-quality .xp-btn-text')
 check('quality has its own button on the bar', (await qualityBtn.count()) === 1)
 check('the button names the current rendition', (await qualityBtn.textContent())?.includes('480p'), await qualityBtn.textContent())
 
 await qualityBtn.click()
 await page.waitForTimeout(300)
-const ladder = await page.locator('.play-stage .xp-quality .xp-menu-option').allTextContents()
+const ladder = await page.locator('[data-case="ladder"] .xp-quality .xp-menu-option').allTextContents()
 check('one click lists every encode supplied', ladder.length === 3, ladder.join(', '))
 
 // Pause and seek first: then nothing but the switch itself can move the position.
@@ -134,7 +134,7 @@ await page.evaluate((sel) => {
 }, V)
 await page.waitForTimeout(500)
 const beforeSwitch = await state()
-await page.locator('.play-stage .xp-quality .xp-menu-option', { hasText: '240p' }).click()
+await page.locator('[data-case="ladder"] .xp-quality .xp-menu-option', { hasText: '240p' }).click()
 await page.waitForTimeout(2500)
 const afterSwitch = await state()
 const switchedFile = await page.evaluate((sel) => document.querySelector(sel).currentSrc.includes('240p'), V)
@@ -147,27 +147,43 @@ check(
 check('the button follows the switch', (await qualityBtn.textContent())?.includes('240p'), await qualityBtn.textContent())
 
 // Subtitles belong to the video, not the rendition, so they must survive it.
-await page.locator('.play-stage .xp-settings .xp-btn').click()
+await page.locator('[data-case="ladder"] .xp-settings .xp-btn').click()
 await page.waitForTimeout(300)
-const settingsRows = await page.locator('.play-stage .xp-settings .xp-menu-item').allTextContents()
+const settingsRows = await page.locator('[data-case="ladder"] .xp-settings .xp-menu-item').allTextContents()
 check('subtitles survive a quality switch', settingsRows.some((r) => r.startsWith('Subtitles')), settingsRows.join(' | '))
 check('quality is not duplicated in settings', !settingsRows.some((r) => r.startsWith('Quality')), settingsRows.join(' | '))
 await page.keyboard.press('Escape')
 
 /* ----------------------------------------------------------------- HLS */
 
-await page.locator('.sample', { hasText: 'HLS stream' }).click()
+const HLS = '[data-case="hls"]'
+await page.locator(HLS).scrollIntoViewIfNeeded()
 await page.waitForTimeout(7000)
-const hls = await state()
+const hls = await page.evaluate((sel) => {
+  const v = document.querySelector(sel)
+  return { dur: Number.isFinite(v.duration) ? Math.round(v.duration) : null, err: v.error?.code ?? null }
+}, `${HLS} video.xp-video`)
 check('HLS stream loads', hls.dur !== null && hls.err === null, JSON.stringify(hls))
-await page.locator('.play-stage .xp-root').hover()
-const hlsQuality = page.locator('.play-stage .xp-quality .xp-btn-text')
+await page.locator(`${HLS} .xp-root`).hover()
+const hlsQuality = page.locator(`${HLS} .xp-quality .xp-btn-text`)
 check('the same button serves HLS', (await hlsQuality.count()) === 1)
 await hlsQuality.click()
 await page.waitForTimeout(400)
-const levels = await page.locator('.play-stage .xp-quality .xp-menu-option').allTextContents()
+const levels = await page.locator(`${HLS} .xp-quality .xp-menu-option`).allTextContents()
 check('stream renditions are listed', levels.length > 2, levels.join(', '))
 check('automatic is offered first', levels[0].startsWith('Auto'), levels[0])
+
+/* ------------------------------------------------------- single source */
+
+// With one file there is nothing to choose between, so the control must not
+// appear at all rather than showing a list of one.
+await page.locator('[data-case="single"]').scrollIntoViewIfNeeded()
+await page.waitForTimeout(800)
+await page.locator('[data-case="single"] .xp-root').hover()
+check(
+  'a single source shows no quality button',
+  (await page.locator('[data-case="single"] .xp-quality').count()) === 0,
+)
 
 check('no uncaught page errors', pageErrors.length === 0, pageErrors.join(' | '))
 await page.close()

@@ -1,56 +1,22 @@
-import { cpSync, existsSync, mkdirSync, readFileSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, statSync } from 'node:fs'
 import { resolve } from 'node:path'
 import react from '@vitejs/plugin-react'
 import { defineConfig, type Plugin } from 'vite'
 
-const OUT_DIR = 'dist/site'
-
 /**
- * Copies the built library and embed bundles into the site output, so the
- * download links and the copy-paste <script> snippets on the page resolve
- * against the site itself rather than a CDN that may not exist yet.
+ * Serves /downloads/* out of dist/ so the pages in examples/ resolve the same
+ * paths in development that they will on a real site.
  */
-function copyDistributables(): Plugin {
-  return {
-    name: 'x-player-copy-distributables',
-    apply: 'build',
-    closeBundle() {
-      for (const dir of ['embed', 'lib']) {
-        const from = resolve(`dist/${dir}`)
-        if (!existsSync(from)) {
-          this.warn(`dist/${dir} not found - run build:lib and build:embed first`)
-          continue
-        }
-        const to = resolve(OUT_DIR, 'downloads', dir)
-        mkdirSync(to, { recursive: true })
-        cpSync(from, to, { recursive: true })
-      }
-
-      // Ship the example pages too. They are the shortest possible integration
-      // and the hostile-CSS proof, and both are more convincing live than as
-      // files in a repository.
-      if (existsSync(resolve('examples'))) {
-        cpSync(resolve('examples'), resolve(OUT_DIR, 'examples'), { recursive: true })
-      }
-    },
-  }
-}
-
-/**
- * In dev, serve /downloads/* straight out of dist/ so the example pages and the
- * site's own download links resolve to the same paths they will have in
- * production. Without this the examples only work after a full build.
- */
-function serveDistributablesInDev(): Plugin {
+function serveDistributables(): Plugin {
   return {
     name: 'x-player-serve-distributables',
     apply: 'serve',
     configureServer(server) {
+      const root = resolve('dist')
       server.middlewares.use('/downloads', (req, res, next) => {
         const rel = (req.url ?? '').split('?')[0]
-        // Keep this strictly inside dist/: no traversal out of the directory.
-        const file = resolve('dist', '.' + rel)
-        if (!file.startsWith(resolve('dist')) || !existsSync(file) || !statSync(file).isFile()) return next()
+        const file = resolve(root, '.' + rel)
+        if (!file.startsWith(root) || !existsSync(file) || !statSync(file).isFile()) return next()
         const type = file.endsWith('.js')
           ? 'text/javascript'
           : file.endsWith('.css')
@@ -65,12 +31,14 @@ function serveDistributablesInDev(): Plugin {
   }
 }
 
-// The landing site. The library and embed bundles have their own configs.
+/**
+ * The development harness in src/dev. It is not shipped: the published artefacts
+ * are the library and embed builds, which have their own configs.
+ */
 export default defineConfig({
-  plugins: [react(), serveDistributablesInDev(), copyDistributables()],
+  plugins: [react(), serveDistributables()],
   build: {
-    outDir: OUT_DIR,
+    outDir: 'dist/dev',
     emptyOutDir: true,
-    chunkSizeWarningLimit: 700,
   },
 })

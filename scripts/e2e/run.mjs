@@ -8,14 +8,14 @@
  */
 import { spawnSync } from 'node:child_process'
 
-const BASE = process.env.BASE_URL ?? 'http://localhost:5199'
-const suites = ['player', 'embed', 'netsim', 'motion']
+const BASE = process.env.BASE_URL ?? 'http://localhost:5173'
+const suites = ['player', 'embed']
 
 try {
   const res = await fetch(BASE, { method: 'HEAD' })
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
 } catch (err) {
-  console.error(`Cannot reach ${BASE} - start the dev server first (npm run dev -- --port 5199).`)
+  console.error(`Cannot reach ${BASE} - start the dev server first (npm run dev).`)
   console.error(String(err))
   process.exit(1)
 }

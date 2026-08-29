@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+- Quality has its own button on the control bar, showing the resolution actually
+  playing, one click from the list. It covers HLS renditions and, through the new
+  `sources` prop, several files of the same video. Subtitles and the chosen
+  language survive a switch.
+- The landing site moved to its own project. This repository is the player.
+  `npm run dev` opens a development harness in `src/dev` instead.
+
 ## 1.0.0
 
 First release.

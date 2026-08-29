@@ -11,7 +11,7 @@ import { gzipSync } from 'node:zlib'
 import { readFileSync } from 'node:fs'
 import { chromium } from 'playwright'
 
-const BASE = process.env.BASE_URL ?? 'http://localhost:5199'
+const BASE = process.env.BASE_URL ?? 'http://localhost:5173'
 const BUNDLE = 'dist/embed/x-player.iife.js'
 const MAX_GZIP_KB = 30
 

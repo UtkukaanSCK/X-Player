@@ -26,3 +26,6 @@ dist-ssr
 # e2e artefacts
 scripts/e2e/out
 node_modules_pw
+
+# The landing site is a separate project kept out of this repository.
+site

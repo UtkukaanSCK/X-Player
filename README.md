@@ -157,35 +157,38 @@ case is to add that property to the list.
 
 ```bash
 npm install
-npm run dev            # site at http://localhost:5173
+npm run dev            # development harness at http://localhost:5173
 ```
+
+`src/dev` is a plain harness, not a demo site: one block per case worth checking
+by hand (the quality ladder, an HLS stream, a single file, your own video). It is
+deliberately unstyled, so a visual problem is obviously the player's and not the
+page's around it. It is never published; the artefacts are the two builds below.
 
 | Command | What it does |
 | --- | --- |
-| `npm run dev` | Landing site in dev mode |
+| `npm run dev` | Development harness |
 | `npm run typecheck` | TypeScript |
 | `npm run lint` | oxlint |
-| `npm run build` | Landing site → `dist/site/` |
+| `npm run build` | Library and embed bundles |
 | `npm run build:lib` | React library + `.d.ts` → `dist/lib/` |
 | `npm run build:embed` | Single-file embed bundle + SRI → `dist/embed/` |
-| `npm run build:all` | All three, plus the measured size manifest |
 | `npm run e2e` | Playwright suites against a running dev server |
 
 ### Tests
 
-`npm run e2e` needs a server up (`npm run dev -- --port 5199`), or set
-`BASE_URL`. Four suites:
+`npm run e2e` needs `npm run dev` up, or set `BASE_URL`. Two suites:
 
 | Suite | What it proves |
 | --- | --- |
-| `player` | Playback, seeking, keyboard, menus, HLS renditions, subtitles, no mobile overflow |
-| `embed` | Bundle under 30 kB gzip, hls.js excluded and lazily fetched, no CSS leaks from a hostile host page |
-| `netsim` | On a dropped connection the bare `<video>` dies while X-Player explains, offers retry, and resumes |
-| `motion` | GSAP is never downloaded under `prefers-reduced-motion`, and nothing is left hidden |
+| `player` | Playback, seeking, keyboard, menus, the quality button for both a progressive ladder and HLS renditions, subtitles surviving a quality switch, no mobile overflow |
+| `embed` | Bundle under 30 kB gzip, hls.js excluded and lazily fetched, no CSS leaks from a deliberately hostile host page |
 
-The numbers shown on the landing site come from `scripts/measure-sizes.mjs`,
-which measures the build output and writes `src/site/generated/sizes.json`. They
-are not typed in by hand and cannot drift from what the repository ships.
+### The landing site
+
+The site that demonstrates all this lives in its own project and is not part of
+this repository, so the repository stays a library. It consumes X-Player the way
+anyone else would.
 
 ## Browser support
 

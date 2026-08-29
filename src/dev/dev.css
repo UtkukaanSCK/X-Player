@@ -1,0 +1,102 @@
+/*
+ * Styles for the development harness only. Deliberately plain: this page exists
+ * to exercise the player, and anything decorative here would make it harder to
+ * tell whether a visual problem belongs to the player or to the page around it.
+ */
+
+:root {
+  color-scheme: dark;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  padding: 32px 24px 80px;
+  background: #101114;
+  color: #e9eaec;
+  font: 15px/1.55 system-ui, sans-serif;
+}
+
+.wrap {
+  max-width: 900px;
+  margin: 0 auto;
+}
+
+h1 {
+  margin: 0 0 4px;
+  font-size: 20px;
+}
+
+.sub {
+  margin: 0 0 32px;
+  color: #8b9097;
+  font-size: 13.5px;
+}
+
+.case {
+  margin-bottom: 36px;
+  padding-top: 20px;
+  border-top: 1px solid #24262b;
+}
+
+.case h2 {
+  margin: 0 0 3px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.case p {
+  margin: 0 0 12px;
+  color: #8b9097;
+  font-size: 13px;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+
+button,
+input[type='url'] {
+  padding: 8px 14px;
+  border: 1px solid #2c2f34;
+  border-radius: 4px;
+  background: #16181c;
+  color: #e9eaec;
+  font: inherit;
+  font-size: 13px;
+}
+
+button {
+  cursor: pointer;
+}
+
+button:hover {
+  border-color: #4a4f57;
+}
+
+button.is-active {
+  border-color: #7dd3fc;
+  color: #7dd3fc;
+}
+
+input[type='url'] {
+  flex: 1;
+  min-width: 240px;
+}
+
+.drop {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: rgba(16, 17, 20, 0.85);
+  border: 2px dashed #7dd3fc;
+  font-size: 18px;
+}
