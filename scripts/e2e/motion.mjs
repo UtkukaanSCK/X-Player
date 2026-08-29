@@ -23,6 +23,41 @@ normal.on('request', (r) => normalRequests.push(r.url()))
 await normal.goto(BASE, { waitUntil: 'networkidle' })
 await normal.waitForTimeout(2500)
 check('gsap loads when motion is allowed', normalRequests.some((u) => /gsap/i.test(u)))
+
+// Scroll the whole page and make sure nothing an animation was supposed to
+// reveal is left invisible. This caught stat cards stuck at opacity 0 because
+// content-visibility hid them from ScrollTrigger's measurements.
+for (let y = 0; y < 12; y++) {
+  await normal.evaluate((i) => window.scrollTo(0, i * window.innerHeight * 0.8), y)
+  await normal.waitForTimeout(450)
+}
+await normal.waitForTimeout(1200)
+const invisible = await normal.evaluate(() => {
+  const bad = []
+  for (const el of document.querySelectorAll('.stat, .feature-card, .install-card, .compare-side, .code-block')) {
+    const cs = getComputedStyle(el)
+    const box = el.getBoundingClientRect()
+    if (Number.parseFloat(cs.opacity) < 0.9) bad.push(`${el.className.split(' ')[0]} opacity=${cs.opacity}`)
+    else if (box.height < 10) bad.push(`${el.className.split(' ')[0]} height=${box.height}`)
+  }
+  return bad
+})
+check('every animated block ends up visible', invisible.length === 0, invisible.slice(0, 6).join('; '))
+
+// These are measurements, not decoration: at rest each counter must read
+// exactly the number it was given, never a value from part-way through a tween.
+const counters = await normal.evaluate(() =>
+  [...document.querySelectorAll('.stat-value span[data-count]')].map((e) => ({
+    shown: e.textContent,
+    expected: e.dataset.count,
+  })),
+)
+check(
+  'stat counters settle on their true values',
+  counters.length > 0 && counters.every((c) => c.shown === c.expected),
+  counters.map((c) => `${c.shown}/${c.expected}`).join(', '),
+)
+
 await normal.close()
 
 /* -------------------------------------------------- reduced motion on */

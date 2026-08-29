@@ -80,14 +80,16 @@ export function useScrollScenes() {
         document.querySelectorAll<HTMLElement>('[data-anim="light-words"]').forEach((el) => {
           const words = el.querySelectorAll('.word')
           if (!words.length) return
+          // Never dim enough to be hard to read: a visitor can land anywhere in
+          // this range from an anchor link, and the text has to work there too.
           gsap.fromTo(
             words,
-            { opacity: 0.18 },
+            { opacity: 0.4 },
             {
               opacity: 1,
-              stagger: 0.12,
+              stagger: 0.1,
               ease: 'none',
-              scrollTrigger: { trigger: el, start: 'top 82%', end: 'bottom 55%', scrub: 0.5 },
+              scrollTrigger: { trigger: el, start: 'top 92%', end: 'bottom 62%', scrub: 0.5 },
             },
           )
         })
@@ -143,12 +145,20 @@ export function useScrollScenes() {
           const target = Number(el.dataset.count ?? '0')
           const decimals = Number(el.dataset.countDecimals ?? '0')
           const box = { value: 0 }
+          // Deliberately not scrubbed. A scrubbed counter shows a made-up number
+          // at every scroll position except the very end, and these are real
+          // measurements - the page must not display a figure that is false.
+          // Count once on entry, then hold the true value.
           gsap.to(box, {
             value: target,
-            ease: 'none',
-            scrollTrigger: { trigger: el, start: 'top 88%', end: 'top 55%', scrub: 0.4 },
+            duration: 1.1,
+            ease: 'power2.out',
+            scrollTrigger: { trigger: el, start: 'top 88%', once: true },
             onUpdate: () => {
               el.textContent = box.value.toFixed(decimals)
+            },
+            onComplete: () => {
+              el.textContent = target.toFixed(decimals)
             },
           })
         })
@@ -167,7 +177,17 @@ export function useScrollScenes() {
         })
       })
 
-      cleanup = () => ctx.revert()
+      // Positions are measured at creation time; images, video metadata and web
+      // fonts all land later and move things. Recompute once now and once after
+      // load rather than trusting the first measurement.
+      ScrollTrigger.refresh()
+      const onLoad = () => ScrollTrigger.refresh()
+      window.addEventListener('load', onLoad)
+
+      cleanup = () => {
+        window.removeEventListener('load', onLoad)
+        ctx.revert()
+      }
     })()
 
     return () => {

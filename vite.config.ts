@@ -25,6 +25,13 @@ function copyDistributables(): Plugin {
         mkdirSync(to, { recursive: true })
         cpSync(from, to, { recursive: true })
       }
+
+      // Ship the example pages too. They are the shortest possible integration
+      // and the hostile-CSS proof, and both are more convincing live than as
+      // files in a repository.
+      if (existsSync(resolve('examples'))) {
+        cpSync(resolve('examples'), resolve(OUT_DIR, 'examples'), { recursive: true })
+      }
     },
   }
 }

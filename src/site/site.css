@@ -77,11 +77,6 @@ h3 {
   isolation: isolate;
   padding: 120px 24px;
 }
-/* Keep off-screen scenes out of layout and paint work. */
-.scene:not(.scene-hero) {
-  content-visibility: auto;
-  contain-intrinsic-size: auto 900px;
-}
 
 .scene-inner,
 .scene-stage {
