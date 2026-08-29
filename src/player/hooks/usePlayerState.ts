@@ -24,14 +24,18 @@ export const initialState: PlayerState = {
 function reducer(state: PlayerState, action: PlayerAction): PlayerState {
   switch (action.type) {
     case 'reset':
-      // Volume and the chosen rendition survive a reload - changing either under
-      // the viewer is surprising, and switching quality goes through this path.
+      // Switching quality goes through this path, and none of these belong to
+      // the rendition: the volume, the speed, the chosen subtitle language and
+      // the subtitle list itself all belong to the video. Clearing them here
+      // made the subtitles button vanish the moment someone changed quality.
       return {
         ...initialState,
         volume: state.volume,
         muted: state.muted,
         rate: state.rate,
         activeSource: state.activeSource,
+        textTracks: state.textTracks,
+        activeTextTrack: state.activeTextTrack,
       }
     case 'loading':
       return { ...state, status: 'loading', error: null }

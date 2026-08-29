@@ -3,6 +3,7 @@ import type { PlayerState, XPlayerSource } from '../types'
 import { formatTime } from '../format'
 import { SeekBar, type SeekRefs } from './SeekBar'
 import { SettingsMenu } from './SettingsMenu'
+import { QualityMenu } from './QualityMenu'
 import { VolumeControl } from './VolumeControl'
 import {
   ExitFullscreenIcon,
@@ -117,12 +118,17 @@ export function ControlBar(props: Props) {
             </button>
           )}
 
-          <SettingsMenu
+          <QualityMenu
             state={state}
             sources={props.sources}
-            onRate={props.onRate}
             onLevel={props.onLevel}
             onSource={props.onSource}
+            onOpenChange={props.onMenuOpenChange}
+          />
+
+          <SettingsMenu
+            state={state}
+            onRate={props.onRate}
             onTextTrack={props.onTextTrack}
             onOpenChange={props.onMenuOpenChange}
           />

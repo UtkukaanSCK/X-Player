@@ -113,18 +113,18 @@ check('C turns subtitles on', cue !== null, cue ?? '(none)')
 
 /* --------------------------------------------- progressive quality ladder */
 
-// Several files of the same video is the other half of "quality": with only one
-// file there is nothing to choose between, so the menu stays out of the way.
+// Quality has its own button on the bar: reaching it must take one click, not a
+// trip through the settings menu.
+await page.keyboard.press('Escape')
 await page.locator('.play-stage .xp-root').hover()
-// Open the menu only if it is not already open: clicking the button toggles it.
-if ((await page.locator('.play-stage .xp-menu').count()) === 0) {
-  await page.locator('.play-stage .xp-settings .xp-btn').click()
-  await page.waitForTimeout(250)
-}
-await page.locator('.play-stage .xp-menu-item', { hasText: 'Quality' }).click()
-await page.waitForTimeout(250)
-const ladder = await page.locator('.play-stage .xp-menu-option').allTextContents()
-check('quality lists every encode supplied', ladder.length === 3, ladder.join(', '))
+const qualityBtn = page.locator('.play-stage .xp-quality .xp-btn-text')
+check('quality has its own button on the bar', (await qualityBtn.count()) === 1)
+check('the button names the current rendition', (await qualityBtn.textContent())?.includes('480p'), await qualityBtn.textContent())
+
+await qualityBtn.click()
+await page.waitForTimeout(300)
+const ladder = await page.locator('.play-stage .xp-quality .xp-menu-option').allTextContents()
+check('one click lists every encode supplied', ladder.length === 3, ladder.join(', '))
 
 // Pause and seek first: then nothing but the switch itself can move the position.
 await page.evaluate((sel) => {
@@ -134,7 +134,7 @@ await page.evaluate((sel) => {
 }, V)
 await page.waitForTimeout(500)
 const beforeSwitch = await state()
-await page.locator('.play-stage .xp-menu-option', { hasText: '240p' }).click()
+await page.locator('.play-stage .xp-quality .xp-menu-option', { hasText: '240p' }).click()
 await page.waitForTimeout(2500)
 const afterSwitch = await state()
 const switchedFile = await page.evaluate((sel) => document.querySelector(sel).currentSrc.includes('240p'), V)
@@ -144,6 +144,15 @@ check(
   Math.abs(afterSwitch.t - beforeSwitch.t) < 0.8,
   `${beforeSwitch.t} -> ${afterSwitch.t}`,
 )
+check('the button follows the switch', (await qualityBtn.textContent())?.includes('240p'), await qualityBtn.textContent())
+
+// Subtitles belong to the video, not the rendition, so they must survive it.
+await page.locator('.play-stage .xp-settings .xp-btn').click()
+await page.waitForTimeout(300)
+const settingsRows = await page.locator('.play-stage .xp-settings .xp-menu-item').allTextContents()
+check('subtitles survive a quality switch', settingsRows.some((r) => r.startsWith('Subtitles')), settingsRows.join(' | '))
+check('quality is not duplicated in settings', !settingsRows.some((r) => r.startsWith('Quality')), settingsRows.join(' | '))
+await page.keyboard.press('Escape')
 
 /* ----------------------------------------------------------------- HLS */
 
@@ -152,16 +161,13 @@ await page.waitForTimeout(7000)
 const hls = await state()
 check('HLS stream loads', hls.dur !== null && hls.err === null, JSON.stringify(hls))
 await page.locator('.play-stage .xp-root').hover()
-await page.locator('.play-stage .xp-settings .xp-btn').click()
+const hlsQuality = page.locator('.play-stage .xp-quality .xp-btn-text')
+check('the same button serves HLS', (await hlsQuality.count()) === 1)
+await hlsQuality.click()
 await page.waitForTimeout(400)
-const qualityRow = page.locator('.play-stage .xp-menu-item', { hasText: 'Quality' })
-check('quality menu appears for HLS', (await qualityRow.count()) > 0)
-if (await qualityRow.count()) {
-  await qualityRow.click()
-  await page.waitForTimeout(300)
-  const levels = await page.locator('.play-stage .xp-menu-option').allTextContents()
-  check('renditions are listed', levels.length > 2, levels.join(', '))
-}
+const levels = await page.locator('.play-stage .xp-quality .xp-menu-option').allTextContents()
+check('stream renditions are listed', levels.length > 2, levels.join(', '))
+check('automatic is offered first', levels[0].startsWith('Auto'), levels[0])
 
 check('no uncaught page errors', pageErrors.length === 0, pageErrors.join(' | '))
 await page.close()

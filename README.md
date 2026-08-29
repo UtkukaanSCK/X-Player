@@ -13,6 +13,8 @@ one script tag, with no build step.
   neutralises host resets, including rules using `!important`
 - **Keyboard complete and labelled** — every control reachable, visible focus
   rings, and a static layout under `prefers-reduced-motion`
+- **Quality on the bar, not buried** — a button showing what is actually playing,
+  one click from the list. HLS renditions, or several files you supply
 
 ## Install
 
@@ -80,7 +82,7 @@ each file; add it as `integrity="sha384-…"` when you serve from a CDN.
 | Prop | Default | What it does |
 | --- | --- | --- |
 | `src` | — | Video URL. A `.m3u8` is treated as HLS. Optional when `sources` is given |
-| `sources` | — | Several encodes of the same video: `{ src, label }[]`. Puts a quality menu on plain MP4 and WebM, and keeps your place when you switch |
+| `sources` | — | Several encodes of the same video: `{ src, label }[]`. Puts a quality button on the control bar for plain MP4 and WebM, and keeps your place when you switch |
 | `type` | `'auto'` | `'auto' \| 'hls' \| 'native'`, for when the extension lies |
 | `poster` | — | Poster image |
 | `title` | — | Shown top-left; with no title the bar is not rendered |

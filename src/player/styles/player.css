@@ -589,8 +589,49 @@
 
 /* ------------------------------------------------------------------ menu */
 
-.xp-settings {
+.xp-settings,
+.xp-quality {
   position: relative;
+}
+
+/* A button that carries a word rather than a glyph. The base button is a grid,
+   which would stack the label and the badge; these belong on one line. */
+.xp-btn-text {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  width: auto !important;
+  min-width: 46px;
+  padding: 0 10px !important;
+  gap: 5px;
+  font-family: inherit;
+  font-size: 12.5px !important;
+  font-weight: 600 !important;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  line-height: 1;
+}
+.xp-quality-label {
+  display: inline-block;
+}
+/* Says the level was chosen for you, without a second control. */
+.xp-quality-auto {
+  display: inline-block;
+  padding: 1px 4px;
+  border-radius: 3px;
+  background: rgba(255, 255, 255, 0.14);
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.xp-btn-active .xp-quality-auto {
+  background: rgba(255, 255, 255, 0.2);
+}
+
+/* The quality list is short; it does not need the settings panel's width. */
+.xp-menu-compact {
+  min-width: 132px;
 }
 
 .xp-menu {
