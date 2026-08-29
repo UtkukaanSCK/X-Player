@@ -1,5 +1,5 @@
 import type { RefObject } from 'react'
-import type { PlayerState } from '../types'
+import type { PlayerState, XPlayerSource } from '../types'
 import { formatTime } from '../format'
 import { SeekBar, type SeekRefs } from './SeekBar'
 import { SettingsMenu } from './SettingsMenu'
@@ -18,6 +18,7 @@ import {
 
 interface Props {
   state: PlayerState
+  sources: XPlayerSource[]
   ended: boolean
   seekRefs: SeekRefs
   timeLabelRef: RefObject<HTMLSpanElement | null>
@@ -31,6 +32,7 @@ interface Props {
   onToggleMute: () => void
   onRate: (rate: number) => void
   onLevel: (level: number) => void
+  onSource: (index: number) => void
   onTextTrack: (index: number) => void
   onToggleSubtitles: () => void
   onTogglePip: () => void
@@ -117,8 +119,10 @@ export function ControlBar(props: Props) {
 
           <SettingsMenu
             state={state}
+            sources={props.sources}
             onRate={props.onRate}
             onLevel={props.onLevel}
+            onSource={props.onSource}
             onTextTrack={props.onTextTrack}
             onOpenChange={props.onMenuOpenChange}
           />

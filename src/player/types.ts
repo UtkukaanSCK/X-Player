@@ -19,9 +19,28 @@ export interface QualityLevel {
 
 export type SourceKind = 'auto' | 'hls' | 'native'
 
-export interface XPlayerProps {
-  /** Video URL: .mp4/.webm or .m3u8 (a blob: URL works too). */
+/**
+ * One rendition of the same video, for the quality menu.
+ *
+ * A single progressive file has nothing to choose between, so the quality menu
+ * only appears for HLS. Pass several of these and it appears for plain MP4 or
+ * WebM too, listing exactly the labels given here.
+ */
+export interface XPlayerSource {
   src: string
+  /** Shown in the quality menu, e.g. "480p". Say what the file really is. */
+  label: string
+  type?: SourceKind
+}
+
+export interface XPlayerProps {
+  /**
+   * Video URL: .mp4/.webm or .m3u8 (a blob: URL works too).
+   * Optional when `sources` is given, in which case the first one is used.
+   */
+  src?: string
+  /** Several renditions of the same video, offered in the quality menu. */
+  sources?: XPlayerSource[]
   /** Source kind. Defaults to "auto", which reads the file extension. */
   type?: SourceKind
   poster?: string
@@ -64,6 +83,8 @@ export interface PlayerState {
   activeLevel: number
   textTracks: { id: number; label: string }[]
   activeTextTrack: number
+  /** Index into `sources` when the caller supplied several renditions. */
+  activeSource: number
   fullscreen: boolean
   pip: boolean
   error: string | null
@@ -85,6 +106,7 @@ export type PlayerAction =
   | { type: 'activeLevel'; level: number }
   | { type: 'textTracks'; tracks: { id: number; label: string }[] }
   | { type: 'activeTextTrack'; index: number }
+  | { type: 'activeSource'; index: number }
   | { type: 'fullscreen'; value: boolean }
   | { type: 'pip'; value: boolean }
   | { type: 'error'; message: string }

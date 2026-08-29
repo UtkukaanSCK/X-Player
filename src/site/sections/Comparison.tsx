@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { XPlayer } from '../../player/XPlayer'
-import { DEMO_MEDIA } from '../config'
+import { DEMO_POSTER, DEMO_SOURCES, DEMO_TRACKS } from '../config'
 import { useNetworkSim, type NetworkMode } from '../hooks/useNetworkSim'
 
 interface Reading {
@@ -138,29 +138,17 @@ export function Comparison() {
   // each attempt a genuinely new fetch. Same file, same bytes - just not from
   // memory.
   const bust = runId === 0 ? '' : `?run=${runId}`
-  const webm = DEMO_MEDIA.webm + bust
-  const mp4 = DEMO_MEDIA.mp4 + bust
+  // Both sides get the same rendition, so the only difference on screen is the
+  // player itself.
+  const clip = DEMO_SOURCES[0].src + bust
 
   return (
-    <section className="scene scene-compare" data-scene="compare" id="compare">
-      <div className="layer depth-0" data-depth="0" aria-hidden="true">
-        <div className="wash wash-compare" />
-      </div>
-      <div className="layer depth-1" data-depth="1" aria-hidden="true">
-        <div className="blob blob-compare" />
-      </div>
-
-      <div className="scene-inner layer depth-4" data-depth="4">
-        <header className="section-head">
-          <p className="eyebrow">See the difference</p>
-          <h2 data-anim="light-words">
-            {'Break the network and watch both.'.split(' ').map((w, i) => (
-              <span className="word-wrap" key={i}>
-                <span className="word">{w}</span>{' '}
-              </span>
-            ))}
-          </h2>
-          <p className="section-lede">
+    <section className="scene" data-scene="compare" id="compare">
+      <div>
+        <header className="scene-head">
+          <p className="marker">See the difference</p>
+          <h2>Break the network and watch both.</h2>
+          <p className="lede">
             Same clip, same moment, same connection. On the left, the browser&rsquo;s built-in player. On the
             right, X-Player. On a merely slow link the two cope about equally well &mdash; both stutter and
             catch up. Press <strong>Offline</strong>: that is where they part company.
@@ -204,7 +192,7 @@ export function Comparison() {
           </p>
         )}
 
-        <div className="compare-grid" data-anim="rise">
+        <div className="compare-grid">
           <article className="compare-side">
             <h3>
               Plain <code>&lt;video controls&gt;</code>
@@ -216,11 +204,10 @@ export function Comparison() {
                 controls
                 playsInline
                 preload="auto"
-                poster={DEMO_MEDIA.poster}
+                poster={DEMO_POSTER}
                 className="plain-video"
               >
-                <source src={webm} type="video/webm" />
-                <source src={mp4} type="video/mp4" />
+                <source src={clip} type="video/mp4" />
               </video>
             </div>
             <Readout reading={plainReading} />
@@ -236,11 +223,11 @@ export function Comparison() {
             <div className="compare-frame" ref={playerWrapRef}>
               <XPlayer
                 key={`player-${runId}`}
-                src={webm}
-                poster={DEMO_MEDIA.poster}
-                tracks={DEMO_MEDIA.tracks}
+                src={clip}
+                poster={DEMO_POSTER}
+                tracks={DEMO_TRACKS}
                 rememberPosition={false}
-                accent="#7dd3fc"
+                accent="#FFB020"
               />
             </div>
             <Readout reading={playerReading} />

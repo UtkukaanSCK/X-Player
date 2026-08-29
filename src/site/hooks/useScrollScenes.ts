@@ -1,24 +1,21 @@
-import { useEffect, useState } from 'react'
+import { useEffect } from 'react'
 
 /**
- * Sets up the scroll-driven animation for the whole page.
+ * Scroll-driven motion for the page.
  *
- * GSAP is imported dynamically and only when it will actually be used: a visitor
- * who prefers reduced motion never downloads it, and neither does a touch device,
- * where pinned scroll sections are more fragile than they are impressive. In both
- * cases the page falls back to its static layout, which is fully readable on its
- * own - the animation is decoration, never the only way to see the content.
+ * The playhead rail is the page's main piece of movement, so everything here
+ * stays quiet: sections settle in, the hero player straightens as you scroll,
+ * spec rows tick in. Scattered effects are what make a page feel automated, and
+ * the rail already carries the idea.
+ *
+ * GSAP is imported dynamically and only when it will be used. A visitor who
+ * prefers reduced motion never downloads it, and the static layout is complete
+ * on its own - nothing here is the only way to see the content.
  */
 export function useScrollScenes() {
-  const [engaged, setEngaged] = useState(false)
-
   useEffect(() => {
     if (typeof window === 'undefined') return
-
-    const reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches
-    const coarsePointer = window.matchMedia('(pointer: coarse)').matches
-    const narrow = window.innerWidth < 900
-    if (reducedMotion) return
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
 
     let cleanup: (() => void) | undefined
     let cancelled = false
@@ -27,159 +24,55 @@ export function useScrollScenes() {
       const [{ gsap }, { ScrollTrigger }] = await Promise.all([import('gsap'), import('gsap/ScrollTrigger')])
       if (cancelled) return
       gsap.registerPlugin(ScrollTrigger)
-      setEngaged(true)
+
+      const coarse = window.matchMedia('(pointer: coarse)').matches
+      const narrow = window.innerWidth < 980
 
       const ctx = gsap.context(() => {
-        const allowPinning = !coarsePointer && !narrow
-
-        /* ---------------------------------------------------------- hero */
-
+        // The hero player sits back in space and straightens as you scroll into
+        // the page - the one flourish, on the one element the page is about.
         const heroPlayer = '[data-anim="hero-player"]'
-        if (document.querySelector(heroPlayer)) {
-          // The player starts tilted back in space and flattens as you scroll,
-          // as though it is rising to meet the viewer.
+        if (!coarse && !narrow && document.querySelector(heroPlayer)) {
           gsap.fromTo(
             heroPlayer,
-            { rotateX: 16, scale: 0.92, y: 26, transformPerspective: 1600 },
+            { rotateX: 13, scale: 0.94, transformPerspective: 1800, transformOrigin: '50% 90%' },
             {
               rotateX: 0,
               scale: 1,
-              y: 0,
               ease: 'none',
-              scrollTrigger: {
-                trigger: '[data-scene="hero"]',
-                start: 'top top',
-                end: '+=70%',
-                scrub: 0.6,
-                pin: allowPinning ? '[data-scene="hero"] .scene-stage' : false,
-                pinSpacing: false,
-              },
+              scrollTrigger: { trigger: '.hero', start: 'top top', end: 'bottom 60%', scrub: 0.6 },
             },
           )
         }
 
-        // Depth layers drift at different rates; that difference is the depth.
-        document.querySelectorAll<HTMLElement>('[data-depth]').forEach((layer) => {
-          const depth = Number(layer.dataset.depth ?? '4')
-          const rate = [0.1, 0.25, 0.5, 0.8, 1, 1.2][depth] ?? 1
-          if (rate === 1) return
-          gsap.to(layer, {
-            yPercent: (1 - rate) * 22,
-            ease: 'none',
-            scrollTrigger: {
-              trigger: layer.closest('[data-scene]') ?? layer,
-              start: 'top bottom',
-              end: 'bottom top',
-              scrub: 0.8,
-            },
+        // Section headers and the blocks under them arrive together, once.
+        gsap.utils
+          .toArray<HTMLElement>('.scene-head, .specstrip, .compare-grid, .install-grid, .play-stage')
+          .forEach((el) => {
+            gsap.from(el, {
+              y: 26,
+              opacity: 0,
+              duration: 0.6,
+              ease: 'power2.out',
+              scrollTrigger: { trigger: el, start: 'top 90%', once: true },
+            })
           })
-        })
 
-        /* ------------------------------------------- word-by-word lighting */
-
-        document.querySelectorAll<HTMLElement>('[data-anim="light-words"]').forEach((el) => {
-          const words = el.querySelectorAll('.word')
-          if (!words.length) return
-          // Never dim enough to be hard to read: a visitor can land anywhere in
-          // this range from an anchor link, and the text has to work there too.
-          gsap.fromTo(
-            words,
-            { opacity: 0.4 },
-            {
-              opacity: 1,
-              stagger: 0.1,
-              ease: 'none',
-              scrollTrigger: { trigger: el, start: 'top 92%', end: 'bottom 62%', scrub: 0.5 },
-            },
-          )
-        })
-
-        /* --------------------------------------------------- entrances */
-
-        document.querySelectorAll<HTMLElement>('[data-anim="rise"]').forEach((el, i) => {
+        // Spec rows tick in like a list being read out.
+        gsap.utils.toArray<HTMLElement>('[data-anim="row"]').forEach((el, i) => {
           gsap.from(el, {
-            y: 44,
             opacity: 0,
-            duration: 0.75,
-            delay: (i % 4) * 0.06,
-            ease: 'power3.out',
-            scrollTrigger: { trigger: el, start: 'top 88%', once: true },
-          })
-        })
-
-        // A clip-path wipe reads as the block being uncovered rather than fading in.
-        document.querySelectorAll<HTMLElement>('[data-anim="wipe"]').forEach((el) => {
-          gsap.fromTo(
-            el,
-            { clipPath: 'inset(0 0 100% 0)' },
-            {
-              clipPath: 'inset(0 0 0% 0)',
-              ease: 'none',
-              scrollTrigger: { trigger: el, start: 'top 85%', end: 'top 45%', scrub: 0.5 },
-            },
-          )
-        })
-
-        /* ------------------------------------------------- card stack */
-
-        const cards = gsap.utils.toArray<HTMLElement>('[data-anim="stack-card"]')
-        cards.forEach((card, i) => {
-          gsap.fromTo(
-            card,
-            { y: 70, opacity: 0, scale: 0.96 },
-            {
-              y: 0,
-              opacity: 1,
-              scale: 1,
-              duration: 0.7,
-              delay: (i % 3) * 0.08,
-              ease: 'power3.out',
-              scrollTrigger: { trigger: card, start: 'top 90%', once: true },
-            },
-          )
-        })
-
-        /* ------------------------------------------------ number counters */
-
-        document.querySelectorAll<HTMLElement>('[data-count]').forEach((el) => {
-          const target = Number(el.dataset.count ?? '0')
-          const decimals = Number(el.dataset.countDecimals ?? '0')
-          const box = { value: 0 }
-          // Deliberately not scrubbed. A scrubbed counter shows a made-up number
-          // at every scroll position except the very end, and these are real
-          // measurements - the page must not display a figure that is false.
-          // Count once on entry, then hold the true value.
-          gsap.to(box, {
-            value: target,
-            duration: 1.1,
+            x: -10,
+            duration: 0.45,
+            delay: (i % 8) * 0.05,
             ease: 'power2.out',
-            scrollTrigger: { trigger: el, start: 'top 88%', once: true },
-            onUpdate: () => {
-              el.textContent = box.value.toFixed(decimals)
-            },
-            onComplete: () => {
-              el.textContent = target.toFixed(decimals)
-            },
-          })
-        })
-
-        // will-change is a promise to the compositor, not a decoration: only make
-        // it while an element is actually on screen.
-        document.querySelectorAll<HTMLElement>('[data-depth], [data-anim]').forEach((el) => {
-          ScrollTrigger.create({
-            trigger: el,
-            start: 'top bottom',
-            end: 'bottom top',
-            onToggle: (self) => {
-              el.style.willChange = self.isActive ? 'transform, opacity' : ''
-            },
+            scrollTrigger: { trigger: el, start: 'top 92%', once: true },
           })
         })
       })
 
-      // Positions are measured at creation time; images, video metadata and web
-      // fonts all land later and move things. Recompute once now and once after
-      // load rather than trusting the first measurement.
+      // Positions are measured when triggers are created; media, fonts and the
+      // rail all move things afterwards. Recompute rather than trust the first read.
       ScrollTrigger.refresh()
       const onLoad = () => ScrollTrigger.refresh()
       window.addEventListener('load', onLoad)
@@ -195,6 +88,4 @@ export function useScrollScenes() {
       cleanup?.()
     }
   }, [])
-
-  return engaged
 }

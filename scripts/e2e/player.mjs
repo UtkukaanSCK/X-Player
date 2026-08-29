@@ -111,9 +111,43 @@ const cue = await page.evaluate((sel) => {
 }, V)
 check('C turns subtitles on', cue !== null, cue ?? '(none)')
 
+/* --------------------------------------------- progressive quality ladder */
+
+// Several files of the same video is the other half of "quality": with only one
+// file there is nothing to choose between, so the menu stays out of the way.
+await page.locator('.play-stage .xp-root').hover()
+// Open the menu only if it is not already open: clicking the button toggles it.
+if ((await page.locator('.play-stage .xp-menu').count()) === 0) {
+  await page.locator('.play-stage .xp-settings .xp-btn').click()
+  await page.waitForTimeout(250)
+}
+await page.locator('.play-stage .xp-menu-item', { hasText: 'Quality' }).click()
+await page.waitForTimeout(250)
+const ladder = await page.locator('.play-stage .xp-menu-option').allTextContents()
+check('quality lists every encode supplied', ladder.length === 3, ladder.join(', '))
+
+// Pause and seek first: then nothing but the switch itself can move the position.
+await page.evaluate((sel) => {
+  const v = document.querySelector(sel)
+  v.pause()
+  v.currentTime = 7
+}, V)
+await page.waitForTimeout(500)
+const beforeSwitch = await state()
+await page.locator('.play-stage .xp-menu-option', { hasText: '240p' }).click()
+await page.waitForTimeout(2500)
+const afterSwitch = await state()
+const switchedFile = await page.evaluate((sel) => document.querySelector(sel).currentSrc.includes('240p'), V)
+check('switching quality loads the other file', switchedFile)
+check(
+  'switching quality keeps your place',
+  Math.abs(afterSwitch.t - beforeSwitch.t) < 0.8,
+  `${beforeSwitch.t} -> ${afterSwitch.t}`,
+)
+
 /* ----------------------------------------------------------------- HLS */
 
-await page.locator('.sample', { hasText: 'HLS' }).click()
+await page.locator('.sample', { hasText: 'HLS stream' }).click()
 await page.waitForTimeout(7000)
 const hls = await state()
 check('HLS stream loads', hls.dur !== null && hls.err === null, JSON.stringify(hls))

@@ -1,8 +1,8 @@
 {
   "embed": {
-    "raw": 63192,
-    "gzip": 20604,
-    "brotli": 18516
+    "raw": 64515,
+    "gzip": 20938,
+    "brotli": 18802
   },
   "hls": {
     "raw": 618156,
@@ -10,9 +10,9 @@
     "brotli": 153657
   },
   "libJs": {
-    "raw": 42138,
-    "gzip": 10933,
-    "brotli": 9698
+    "raw": 44023,
+    "gzip": 11330,
+    "brotli": 10046
   },
   "libCss": {
     "raw": 11981,

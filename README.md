@@ -47,7 +47,7 @@ Attributes: `data-src` (required), `data-type`, `data-poster`, `data-title`,
 ### 3. React
 
 ```bash
-npm install github:UtkukaanSCK/x-player
+npm install github:UtkukaanSCK/X-Player
 ```
 
 ```tsx
@@ -67,7 +67,7 @@ published to npm.
 
 ```html
 <script
-  src="https://cdn.jsdelivr.net/gh/UtkukaanSCK/x-player@v1.0.0/dist/embed/x-player.iife.js"
+  src="https://cdn.jsdelivr.net/gh/UtkukaanSCK/X-Player@v1.0.0/dist/embed/x-player.iife.js"
   crossorigin="anonymous"
 ></script>
 ```
@@ -79,7 +79,8 @@ each file; add it as `integrity="sha384-…"` when you serve from a CDN.
 
 | Prop | Default | What it does |
 | --- | --- | --- |
-| `src` | — | Video URL. A `.m3u8` is treated as HLS |
+| `src` | — | Video URL. A `.m3u8` is treated as HLS. Optional when `sources` is given |
+| `sources` | — | Several encodes of the same video: `{ src, label }[]`. Puts a quality menu on plain MP4 and WebM, and keeps your place when you switch |
 | `type` | `'auto'` | `'auto' \| 'hls' \| 'native'`, for when the extension lies |
 | `poster` | — | Poster image |
 | `title` | — | Shown top-left; with no title the bar is not rendered |

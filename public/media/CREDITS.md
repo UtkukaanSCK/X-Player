@@ -1,8 +1,10 @@
 # Media credits
 
-`demo.mp4`, `demo.webm`, `demo.jpg`
+`demo-480p.mp4`, `demo-360p.mp4`, `demo-240p.mp4`, `demo.jpg`
 
-A 14-second excerpt from the **Sintel** trailer, re-encoded for the demo.
+A 14-second excerpt from the **Sintel** trailer, re-encoded at three sizes so
+the quality menu has real files to switch between. The source is 854x480, so the
+ladder stops at 480p.
 
 - © copyright Blender Foundation | <https://durian.blender.org>
 - Licensed under the Creative Commons Attribution 3.0 license

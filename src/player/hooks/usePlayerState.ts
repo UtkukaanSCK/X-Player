@@ -14,6 +14,7 @@ export const initialState: PlayerState = {
   activeLevel: -1,
   textTracks: [],
   activeTextTrack: -1,
+  activeSource: 0,
   fullscreen: false,
   pip: false,
   error: null,
@@ -23,8 +24,15 @@ export const initialState: PlayerState = {
 function reducer(state: PlayerState, action: PlayerAction): PlayerState {
   switch (action.type) {
     case 'reset':
-      // Volume survives a source change - changing it under the viewer is surprising.
-      return { ...initialState, volume: state.volume, muted: state.muted, rate: state.rate }
+      // Volume and the chosen rendition survive a reload - changing either under
+      // the viewer is surprising, and switching quality goes through this path.
+      return {
+        ...initialState,
+        volume: state.volume,
+        muted: state.muted,
+        rate: state.rate,
+        activeSource: state.activeSource,
+      }
     case 'loading':
       return { ...state, status: 'loading', error: null }
     case 'ready':
@@ -55,6 +63,8 @@ function reducer(state: PlayerState, action: PlayerAction): PlayerState {
     }
     case 'activeTextTrack':
       return state.activeTextTrack === action.index ? state : { ...state, activeTextTrack: action.index }
+    case 'activeSource':
+      return state.activeSource === action.index ? state : { ...state, activeSource: action.index }
     case 'fullscreen':
       return state.fullscreen === action.value ? state : { ...state, fullscreen: action.value }
     case 'pip':

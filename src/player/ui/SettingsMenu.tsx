@@ -1,20 +1,23 @@
 import { useEffect, useRef, useState } from 'react'
-import type { PlayerState } from '../types'
+import type { PlayerState, XPlayerSource } from '../types'
 import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, SettingsIcon } from './Icons'
 
 const RATES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]
 
 interface Props {
   state: PlayerState
+  /** Progressive renditions, when the caller supplied several. */
+  sources: XPlayerSource[]
   onRate: (rate: number) => void
   onLevel: (level: number) => void
+  onSource: (index: number) => void
   onTextTrack: (index: number) => void
   onOpenChange: (open: boolean) => void
 }
 
 type Panel = 'main' | 'speed' | 'quality' | 'subtitles'
 
-export function SettingsMenu({ state, onRate, onLevel, onTextTrack, onOpenChange }: Props) {
+export function SettingsMenu({ state, sources, onRate, onLevel, onSource, onTextTrack, onOpenChange }: Props) {
   const [open, setOpen] = useState(false)
   const [panel, setPanel] = useState<Panel>('main')
   const wrapRef = useRef<HTMLDivElement>(null)
@@ -32,28 +35,34 @@ export function SettingsMenu({ state, onRate, onLevel, onTextTrack, onOpenChange
       if (!wrapRef.current?.contains(e.target as Node)) setOpen(false)
     }
     const onKey = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') {
-        e.stopPropagation()
-        setOpen(false)
-        buttonRef.current?.focus()
-      }
+      if (e.key !== 'Escape') return
+      e.stopPropagation()
+      setOpen(false)
+      buttonRef.current?.focus()
     }
     document.addEventListener('pointerdown', onDown, true)
-    wrapRef.current?.addEventListener('keydown', onKey)
-    const node = wrapRef.current
+    // On the document, not the wrapper: picking an option unmounts the button
+    // that had focus, and a wrapper listener would never hear the key again.
+    document.addEventListener('keydown', onKey, true)
     return () => {
       document.removeEventListener('pointerdown', onDown, true)
-      node?.removeEventListener('keydown', onKey)
+      document.removeEventListener('keydown', onKey, true)
     }
   }, [open])
 
+  const hasLevels = state.levels.length > 0
+  const hasSources = sources.length > 1
+
   const activeLevelLabel = (() => {
-    if (state.levels.length === 0) return null
-    if (state.selectedLevel === -1) {
-      const active = state.levels.find((l) => l.id === state.activeLevel)
-      return active ? `Auto (${active.label})` : 'Auto'
+    if (hasLevels) {
+      if (state.selectedLevel === -1) {
+        const active = state.levels.find((l) => l.id === state.activeLevel)
+        return active ? `Auto (${active.label})` : 'Auto'
+      }
+      return state.levels.find((l) => l.id === state.selectedLevel)?.label ?? 'Auto'
     }
-    return state.levels.find((l) => l.id === state.selectedLevel)?.label ?? 'Auto'
+    if (hasSources) return sources[state.activeSource]?.label ?? sources[0].label
+    return null
   })()
 
   const subtitleLabel =
@@ -130,7 +139,7 @@ export function SettingsMenu({ state, onRate, onLevel, onTextTrack, onOpenChange
                   </button>
                 ))}
 
-              {panel === 'quality' && (
+              {panel === 'quality' && hasLevels && (
                 <>
                   <button
                     type="button"
@@ -159,6 +168,27 @@ export function SettingsMenu({ state, onRate, onLevel, onTextTrack, onOpenChange
                     >
                       <span className="xp-menu-check">{state.selectedLevel === lv.id && <CheckIcon />}</span>
                       <span>{lv.label}</span>
+                    </button>
+                  ))}
+                </>
+              )}
+
+              {panel === 'quality' && !hasLevels && hasSources && (
+                <>
+                  {sources.map((source, i) => (
+                    <button
+                      key={source.src}
+                      type="button"
+                      className="xp-menu-item xp-menu-option"
+                      role="menuitemradio"
+                      aria-checked={state.activeSource === i}
+                      onClick={() => {
+                        onSource(i)
+                        setPanel('main')
+                      }}
+                    >
+                      <span className="xp-menu-check">{state.activeSource === i && <CheckIcon />}</span>
+                      <span>{source.label}</span>
                     </button>
                   ))}
                 </>

@@ -57,13 +57,13 @@
   },
   "license": "MIT",
   "author": "Utku Kaan",
-  "homepage": "https://github.com/UtkukaanSCK/x-player#readme",
+  "homepage": "https://github.com/UtkukaanSCK/X-Player#readme",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/UtkukaanSCK/x-player.git"
+    "url": "git+https://github.com/UtkukaanSCK/X-Player.git"
   },
   "bugs": {
-    "url": "https://github.com/UtkukaanSCK/x-player/issues"
+    "url": "https://github.com/UtkukaanSCK/X-Player/issues"
   },
   "keywords": [
     "video",

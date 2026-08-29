@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import type { XPlayerProps, XPlayerTrack } from './types'
+import type { XPlayerProps, XPlayerSource, XPlayerTrack } from './types'
 import { usePlayerState } from './hooks/usePlayerState'
 import { useVideoEngine } from './hooks/useVideoEngine'
 import { useStallGuard } from './hooks/useStallGuard'
@@ -16,8 +16,9 @@ import './styles/player.css'
 
 const RATE_STEPS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]
 
-/** A stable default array, so a fresh one is not created on every render. */
+/** Stable defaults, so a fresh array is not created on every render. */
 const NO_TRACKS: XPlayerTrack[] = []
+const NO_SOURCES: XPlayerSource[] = []
 
 /**
  * A subtitle file on another origin can only be read with crossOrigin set.
@@ -38,6 +39,7 @@ function needsCrossOrigin(tracks: XPlayerTrack[]): boolean {
 
 export function XPlayer({
   src,
+  sources = NO_SOURCES,
   type = 'auto',
   poster,
   title,
@@ -80,6 +82,8 @@ export function XPlayer({
    * matters most.
    */
   const [pendingPlay, setPendingPlay] = useState(false)
+  /** Was playback running when the viewer switched quality? */
+  const resumeAfterSwitchRef = useRef(false)
   const { toast, show: showToast } = useToast()
 
   const playingRef = useRef(false)
@@ -96,10 +100,26 @@ export function XPlayer({
     [dispatch],
   )
 
-  const engine = useVideoEngine({ videoRef, src, type, startTimeRef, dispatch, onFatal })
+  // An explicit src wins; otherwise play whichever rendition is selected.
+  const chosen = sources[state.activeSource] ?? sources[0]
+  const activeSrc = src ?? chosen?.src ?? ''
+  const activeType = src ? type : (chosen?.type ?? type)
+
+  const engine = useVideoEngine({
+    videoRef,
+    src: activeSrc,
+    type: activeType,
+    startTimeRef,
+    dispatch,
+    onFatal,
+  })
   useStallGuard({ videoRef, playingRef, dispatch, softRecover: engine.softRecover })
 
-  const resume = useResume(videoRef, src, rememberPosition, storageKey)
+  // Which video this is, independent of which rendition is playing. Switching
+  // quality must not look like a different video to anything downstream.
+  const videoId = storageKey ?? src ?? sources[0]?.src ?? ''
+
+  const resume = useResume(videoRef, videoId, rememberPosition, storageKey)
 
   const locked = menuOpen || !!state.error || resume.offer !== null
   const { visible: controlsVisible, show: pokeControls } = useControlsVisibility(
@@ -230,9 +250,19 @@ export function XPlayer({
     setPendingPlay(false)
     startTimeRef.current = startTime
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [src])
+  }, [videoId])
 
-  /* ------------------------------------------------------------- otomatik oynat */
+  // Resume playback after a quality switch, once the new file can actually play.
+  useEffect(() => {
+    if (!resumeAfterSwitchRef.current || state.status !== 'ready') return
+    resumeAfterSwitchRef.current = false
+    const video = videoRef.current
+    if (!video) return
+    setPendingPlay(true)
+    void video.play().catch(() => setPendingPlay(false))
+  }, [state.status, state.activeSource])
+
+  /* ------------------------------------------------------------- autoplay */
 
   useEffect(() => {
     const video = videoRef.current
@@ -346,10 +376,34 @@ export function XPlayer({
   const setLevel = useCallback(
     (level: number) => {
       engine.setLevel(level)
-      const label = level === -1 ? 'Otomatik' : (state.levels.find((l) => l.id === level)?.label ?? '')
-      showToast(`Kalite: ${label}`)
+      const label = level === -1 ? 'Auto' : (state.levels.find((l) => l.id === level)?.label ?? '')
+      showToast(`Quality: ${label}`)
     },
     [engine, state.levels, showToast],
+  )
+
+  /**
+   * Switches to another progressive rendition of the same video.
+   *
+   * The engine rebuilds the source whenever its src changes, and it already
+   * seeks to `startTimeRef` on the way back up - the same path resume uses. So
+   * the switch is: remember where we are, point at the other file, and press
+   * play again if we were playing.
+   */
+  const setSource = useCallback(
+    (index: number) => {
+      const next = sources[index]
+      const video = videoRef.current
+      if (!next || index === state.activeSource) return
+      if (video) {
+        startTimeRef.current = video.currentTime
+        if (!video.paused) setPendingPlay(true)
+        resumeAfterSwitchRef.current = !video.paused
+      }
+      dispatch({ type: 'activeSource', index })
+      showToast(`Quality: ${next.label}`)
+    },
+    [sources, state.activeSource, dispatch, showToast],
   )
 
   /* -------------------------------------------------------------- subtitles */
@@ -375,7 +429,7 @@ export function XPlayer({
     }))
     dispatch({ type: 'textTracks', tracks: list })
     dispatch({ type: 'activeTextTrack', index: tracksRef.current.findIndex((t) => t.default) })
-  }, [tracksKey, dispatch, src])
+  }, [tracksKey, dispatch, videoId])
 
   // Apply the selected subtitle track.
   useEffect(() => {
@@ -469,10 +523,35 @@ export function XPlayer({
   /* ------------------------------------------------------ surface click / tap */
 
   const lastTapRef = useRef({ time: 0, x: 0 })
+  /**
+   * Where and when the pointer went down on the surface.
+   *
+   * A bare pointerup is not a click: a drag that ends over the video, or a press
+   * that began somewhere else entirely, would both toggle playback. Requiring
+   * the press and the release to belong together is what stops the video
+   * pausing itself when someone drags across it.
+   */
+  const pressRef = useRef<{ id: number; x: number; y: number; at: number } | null>(null)
+
+  const onSurfacePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    pressRef.current = { id: e.pointerId, x: e.clientX, y: e.clientY, at: performance.now() }
+  }, [])
 
   const onSurfacePointerUp = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       if (state.error || resume.offer !== null) return
+
+      const press = pressRef.current
+      pressRef.current = null
+      // Same pointer, barely moved, and released promptly: that is a click.
+      if (
+        !press ||
+        press.id !== e.pointerId ||
+        Math.hypot(e.clientX - press.x, e.clientY - press.y) > 8 ||
+        performance.now() - press.at > 600
+      ) {
+        return
+      }
 
       if (e.pointerType === 'touch') {
         const rect = e.currentTarget.getBoundingClientRect()
@@ -535,7 +614,11 @@ export function XPlayer({
 
       <div
         className="xp-surface"
+        onPointerDown={onSurfacePointerDown}
         onPointerUp={onSurfacePointerUp}
+        onPointerCancel={() => {
+          pressRef.current = null
+        }}
         onDoubleClick={(e) => {
           if (e.nativeEvent instanceof MouseEvent) toggleFullscreen()
         }}
@@ -560,19 +643,20 @@ export function XPlayer({
       {resume.offer !== null && (
         <div className="xp-resume">
           <span>
-            <strong>{formatTime(resume.offer)}</strong> konumundan devam edilsin mi?
+            Resume from <strong>{formatTime(resume.offer)}</strong>?
           </span>
           <button type="button" className="xp-resume-primary" onClick={resume.acceptOffer}>
-            Devam et
+            Resume
           </button>
           <button type="button" className="xp-resume-ghost" onClick={resume.dismissOffer}>
-            Baştan
+            Start over
           </button>
         </div>
       )}
 
       <ControlBar
         state={state}
+        sources={sources}
         ended={ended}
         seekRefs={seekRefs}
         timeLabelRef={timeLabelRef}
@@ -586,6 +670,7 @@ export function XPlayer({
         onToggleMute={toggleMute}
         onRate={setRate}
         onLevel={setLevel}
+        onSource={setSource}
         onTextTrack={setTextTrack}
         onToggleSubtitles={cycleSubtitles}
         onTogglePip={togglePip}
