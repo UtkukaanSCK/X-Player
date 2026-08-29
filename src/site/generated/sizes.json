@@ -1,0 +1,23 @@
+{
+  "embed": {
+    "raw": 63192,
+    "gzip": 20604,
+    "brotli": 18516
+  },
+  "hls": {
+    "raw": 618156,
+    "gzip": 188290,
+    "brotli": 153657
+  },
+  "libJs": {
+    "raw": 42138,
+    "gzip": 10933,
+    "brotli": 9698
+  },
+  "libCss": {
+    "raw": 11981,
+    "gzip": 2964,
+    "brotli": 2565
+  },
+  "measuredAt": "2026-08-29"
+}

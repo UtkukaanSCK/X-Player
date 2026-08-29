@@ -1,0 +1,82 @@
+{
+  "name": "x-player",
+  "private": true,
+  "version": "1.0.0",
+  "description": "Takılmayan, kolayca gömülebilen web video oynatıcı.",
+  "type": "module",
+  "main": "./dist/lib/x-player.cjs.js",
+  "module": "./dist/lib/x-player.es.js",
+  "types": "./dist/lib/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/lib/index.d.ts",
+      "import": "./dist/lib/x-player.es.js",
+      "require": "./dist/lib/x-player.cjs.js"
+    },
+    "./style.css": "./dist/lib/style.css"
+  },
+  "files": [
+    "dist"
+  ],
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "scripts": {
+    "dev": "vite",
+    "typecheck": "tsc -b",
+    "lint": "oxlint",
+    "build": "tsc -b && vite build",
+    "build:types": "tsc -p tsconfig.types.json",
+    "build:lib": "tsc -b && vite build --config vite.lib.config.ts && npm run build:types",
+    "build:embed": "vite build --config vite.embed.config.ts && node scripts/sri.mjs",
+    "build:all": "npm run build:lib && npm run build:embed && node scripts/measure-sizes.mjs && npm run build",
+    "prepare": "npm run build:lib && npm run build:embed",
+    "preview": "vite preview",
+    "e2e": "node scripts/e2e/run.mjs"
+  },
+  "peerDependencies": {
+    "react": ">=18",
+    "react-dom": ">=18"
+  },
+  "dependencies": {
+    "hls.js": "^1.7.1"
+  },
+  "devDependencies": {
+    "@types/node": "^24.13.3",
+    "@types/react": "^19.2.18",
+    "@types/react-dom": "^19.2.4",
+    "@vitejs/plugin-react": "^6.1.0",
+    "gsap": "^3.15.0",
+    "oxlint": "^1.79.0",
+    "playwright": "^1.62.1",
+    "preact": "^10.29.8",
+    "react": "^19.2.8",
+    "react-dom": "^19.2.8",
+    "typescript": "~6.0.2",
+    "vite": "^8.2.2"
+  },
+  "license": "MIT",
+  "author": "Utku Kaan",
+  "homepage": "https://github.com/UtkukaanSCK/x-player#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/UtkukaanSCK/x-player.git"
+  },
+  "bugs": {
+    "url": "https://github.com/UtkukaanSCK/x-player/issues"
+  },
+  "keywords": [
+    "video",
+    "player",
+    "video-player",
+    "hls",
+    "html5-video",
+    "react",
+    "embeddable",
+    "subtitles",
+    "webvtt"
+  ],
+  "engines": {
+    "node": ">=20"
+  }
+}

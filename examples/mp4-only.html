@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>X-Player - simplest possible embed</title>
+    <style>
+      body {
+        margin: 0;
+        padding: 40px 20px;
+        background: #0d0f14;
+        color: #e8eaee;
+        font: 16px/1.6 system-ui, sans-serif;
+      }
+      .wrap {
+        max-width: 720px;
+        margin: 0 auto;
+      }
+      p {
+        color: #9aa2ad;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>The whole integration</h1>
+      <p>
+        One script tag and one div. No build step, no stylesheet, no framework. This page plays an MP4, so
+        <code>hls.min.js</code> is never requested &mdash; open the network panel and see for yourself.
+      </p>
+
+      <div data-x-player data-src="/media/demo.mp4" data-title="Sintel (excerpt)" data-poster="/media/demo.jpg"></div>
+    </div>
+
+    <script src="/downloads/embed/x-player.iife.js"></script>
+  </body>
+</html>

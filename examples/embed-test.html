@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>X-Player - hostile CSS test</title>
+    <!--
+      This page imitates a badly behaved host site on purpose. Its global rules
+      target exactly the elements a player is built from, several of them with
+      !important. If the style isolation works, none of it reaches inside.
+
+      scripts/e2e/embed.mjs asserts every one of these is neutralised.
+    -->
+    <style>
+      * {
+        font-family: 'Comic Sans MS', cursive !important;
+        letter-spacing: 2px !important;
+      }
+      body {
+        margin: 0;
+        padding: 32px;
+        background: #f6f2e8;
+        color: #333;
+      }
+      button {
+        background: hotpink !important;
+        border: 4px dashed lime !important;
+        padding: 20px !important;
+        color: darkred !important;
+        font-size: 22px !important;
+        text-transform: uppercase !important;
+        box-shadow: 0 0 0 6px orange !important;
+      }
+      svg {
+        border: 2px solid red !important;
+        max-width: 12px !important;
+      }
+      input {
+        background: yellow !important;
+        border: 3px solid brown !important;
+      }
+      div,
+      span,
+      p {
+        line-height: 3 !important;
+      }
+      video {
+        max-width: 60px !important;
+        border: 5px solid blue !important;
+      }
+      h1 {
+        font-size: 22px;
+      }
+      .wrap {
+        max-width: 860px;
+        margin: 0 auto;
+        display: grid;
+        gap: 40px;
+      }
+      section > p {
+        color: #666;
+        font-size: 14px;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <h1>X-Player hostile CSS test</h1>
+      <p>
+        No React, no build step, one script tag. This page's own CSS is deliberately aggressive; the player
+        should be untouched by all of it.
+      </p>
+
+      <section>
+        <p>1. No-code mount: a div with <code>data-x-player</code> and nothing else.</p>
+        <div
+          data-x-player
+          data-src="/media/demo.webm"
+          data-title="No-code embed"
+          data-poster="/media/demo.jpg"
+        ></div>
+      </section>
+
+      <section>
+        <p>
+          2. Programmatic mount: an HLS stream with a different accent colour. Streaming support is fetched at
+          this point and not before.
+        </p>
+        <div id="hls-player"></div>
+      </section>
+    </div>
+
+    <script src="/downloads/embed/x-player.iife.js"></script>
+    <script>
+      XPlayer.mount('#hls-player', {
+        src: 'https://test-streams.mux.dev/x36xhzz/x36xhzz.m3u8',
+        title: 'HLS stream, mounted with mount()',
+        accent: '#c4b5fd',
+      })
+    </script>
+  </body>
+</html>
