@@ -27,8 +27,16 @@ interface Props {
 export function QualityMenu({ state, sources, onLevel, onSource, onOpenChange }: Props) {
   const { open, setOpen, wrapRef, buttonRef } = useMenu(onOpenChange)
 
-  const hasLevels = state.levels.length > 0
+  /*
+   * An explicit list from the caller wins over whatever the stream declares.
+   *
+   * A stream can report a single nameless rendition - a plain media playlist
+   * does exactly that - and offering a menu whose only entry reads "Unknown"
+   * is worse than offering nothing. So renditions only drive the menu when
+   * there is genuinely a choice among them, and named sources always win.
+   */
   const hasSources = sources.length > 1
+  const hasLevels = !hasSources && state.levels.length > 1
   if (!hasLevels && !hasSources) return null
 
   const activeLevel = state.levels.find((l) => l.id === state.activeLevel)

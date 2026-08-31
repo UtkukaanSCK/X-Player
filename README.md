@@ -91,9 +91,17 @@ each file; add it as `integrity="sha384-…"` when you serve from a CDN.
 | `startTime` | `0` | Start position, in seconds |
 | `accent` | `#7dd3fc` | Accent colour |
 | `tracks` | `[]` | WebVTT subtitles: `{ src, label, srclang, default? }` |
+| `audioTracks` | `[]` | Selectable audio tracks: `{ id, label, language? }`. The player shows the list and reports the choice; carrying it out is the host's job, because a file has to be demuxed to know a second language is in there |
+| `activeAudioTrack` | `-1` | Id of the track in use |
+| `onAudioTrack` | — | Called with the id the viewer picked |
+| `apiRef` | — | Receives `{ reload, seekTo, getVideo }`, for hosts that change what a source means without changing its URL |
 | `rememberPosition` | `true` | Offer to resume where the viewer left off |
 | `storageKey` | `src` | Key used to remember the position |
 | `onReady` / `onPlay` / `onPause` / `onEnded` / `onError` | — | Events |
+
+`preloadHls()` is also exported: it fetches the HLS engine ahead of time, for a
+page that already knows a stream is coming and would rather not spend the beat
+when it arrives.
 
 Theme through CSS variables instead of overriding classes: `--xp-accent`,
 `--xp-fg`, `--xp-glass`, `--xp-glass-strong`, `--xp-hairline`, `--xp-radius`.
@@ -184,11 +192,18 @@ page's around it. It is never published; the artefacts are the two builds below.
 | `player` | Playback, seeking, keyboard, menus, the quality button for both a progressive ladder and HLS renditions, subtitles surviving a quality switch, no mobile overflow |
 | `embed` | Bundle under 30 kB gzip, hls.js excluded and lazily fetched, no CSS leaks from a deliberately hostile host page |
 
-### The landing site
+### Projects built on this one
 
-The site that demonstrates all this lives in its own project and is not part of
-this repository, so the repository stays a library. It consumes X-Player the way
-anyone else would.
+Two things consume this library and live in their own projects, so the
+repository stays a library:
+
+- **The landing site**, which demonstrates all of the above.
+- **X-Player Desktop**, an Electron app that plays any file on disk - MKV, AVI,
+  HEVC, DTS and the rest - by putting an ffmpeg gateway behind the same player.
+  It adds no playback engine of its own: the gateway turns every file into
+  either a plain MP4 or an HLS stream, both of which the player already knows.
+
+Both consume X-Player the way anyone else would.
 
 ## Browser support
 

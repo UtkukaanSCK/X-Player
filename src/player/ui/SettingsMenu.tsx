@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import type { PlayerState } from '../types'
+import type { PlayerState, XPlayerAudioTrack } from '../types'
 import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, SettingsIcon } from './Icons'
 import { useMenu } from './useMenu'
 
@@ -7,19 +7,39 @@ const RATES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]
 
 interface Props {
   state: PlayerState
+  audioTracks: XPlayerAudioTrack[]
+  activeAudioTrack: number
   onRate: (rate: number) => void
   onTextTrack: (index: number) => void
+  onAudioTrack: (id: number) => void
   onOpenChange: (open: boolean) => void
 }
 
-type Panel = 'main' | 'speed' | 'subtitles'
+type Panel = 'main' | 'speed' | 'subtitles' | 'audio'
+
+const PANEL_TITLE: Record<Exclude<Panel, 'main'>, string> = {
+  speed: 'Playback speed',
+  subtitles: 'Subtitles',
+  audio: 'Audio track',
+}
 
 /**
- * Speed and subtitles. Quality used to live here too, but it has its own button
- * on the bar now: it is the setting people reach for when playback is
- * struggling, and it should not take two clicks to find.
+ * Speed, subtitles and the audio track. Quality used to live here too, but it
+ * has its own button on the bar now: it is the setting people reach for when
+ * playback is struggling, and it should not take two clicks to find.
+ *
+ * The audio row only appears when there is genuinely more than one track. A
+ * menu entry that always says "Track 1" teaches people to ignore the menu.
  */
-export function SettingsMenu({ state, onRate, onTextTrack, onOpenChange }: Props) {
+export function SettingsMenu({
+  state,
+  audioTracks,
+  activeAudioTrack,
+  onRate,
+  onTextTrack,
+  onAudioTrack,
+  onOpenChange,
+}: Props) {
   const { open, setOpen, wrapRef, buttonRef } = useMenu(onOpenChange)
   const [panel, setPanel] = useState<Panel>('main')
 
@@ -29,6 +49,7 @@ export function SettingsMenu({ state, onRate, onTextTrack, onOpenChange }: Props
 
   const subtitleLabel =
     state.activeTextTrack === -1 ? 'Off' : (state.textTracks[state.activeTextTrack]?.label ?? 'Off')
+  const audioLabel = audioTracks.find((t) => t.id === activeAudioTrack)?.label ?? audioTracks[0]?.label ?? ''
 
   return (
     <div className="xp-settings" ref={wrapRef}>
@@ -52,14 +73,22 @@ export function SettingsMenu({ state, onRate, onTextTrack, onOpenChange }: Props
               <button type="button" className="xp-menu-item" role="menuitem" onClick={() => setPanel('speed')}>
                 <span>Playback speed</span>
                 <span className="xp-menu-value">
-                  {state.rate === 1 ? 'Normal' : `${state.rate}x`} <ChevronRightIcon />
+                  <span>{state.rate === 1 ? 'Normal' : `${state.rate}x`}</span> <ChevronRightIcon />
                 </span>
               </button>
               {state.textTracks.length > 0 && (
                 <button type="button" className="xp-menu-item" role="menuitem" onClick={() => setPanel('subtitles')}>
                   <span>Subtitles</span>
                   <span className="xp-menu-value">
-                    {subtitleLabel} <ChevronRightIcon />
+                    <span>{subtitleLabel}</span> <ChevronRightIcon />
+                  </span>
+                </button>
+              )}
+              {audioTracks.length > 1 && (
+                <button type="button" className="xp-menu-item" role="menuitem" onClick={() => setPanel('audio')}>
+                  <span>Audio track</span>
+                  <span className="xp-menu-value">
+                    <span>{audioLabel}</span> <ChevronRightIcon />
                   </span>
                 </button>
               )}
@@ -70,7 +99,7 @@ export function SettingsMenu({ state, onRate, onTextTrack, onOpenChange }: Props
             <div className="xp-menu-panel">
               <button type="button" className="xp-menu-back" onClick={() => setPanel('main')}>
                 <ChevronLeftIcon />
-                <span>{panel === 'speed' ? 'Playback speed' : 'Subtitles'}</span>
+                <span>{PANEL_TITLE[panel]}</span>
               </button>
 
               {panel === 'speed' &&
@@ -124,6 +153,24 @@ export function SettingsMenu({ state, onRate, onTextTrack, onOpenChange }: Props
                   ))}
                 </>
               )}
+
+              {panel === 'audio' &&
+                audioTracks.map((t) => (
+                  <button
+                    key={t.id}
+                    type="button"
+                    className="xp-menu-item xp-menu-option"
+                    role="menuitemradio"
+                    aria-checked={activeAudioTrack === t.id}
+                    onClick={() => {
+                      onAudioTrack(t.id)
+                      setPanel('main')
+                    }}
+                  >
+                    <span className="xp-menu-check">{activeAudioTrack === t.id && <CheckIcon />}</span>
+                    <span>{t.label}</span>
+                  </button>
+                ))}
             </div>
           )}
         </div>

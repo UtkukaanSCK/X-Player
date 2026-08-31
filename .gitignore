@@ -27,5 +27,6 @@ dist-ssr
 scripts/e2e/out
 node_modules_pw
 
-# The landing site is a separate project kept out of this repository.
+# Separate projects that consume this library, kept out of this repository.
 site
+app

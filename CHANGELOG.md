@@ -8,6 +8,22 @@
   language survive a switch.
 - The landing site moved to its own project. This repository is the player.
   `npm run dev` opens a development harness in `src/dev` instead.
+- Audio tracks can be offered in the settings menu through `audioTracks`,
+  `activeAudioTrack` and `onAudioTrack`. Controlled by the host: a file has to be
+  demuxed to know a second language is in it, which is not the player's job.
+- `apiRef` hands back `{ reload, seekTo, getVideo }`, for hosts that change what
+  a source means without changing its URL — picking another audio track, say.
+- `preloadHls()` fetches the HLS engine ahead of time, for a host that knows a
+  stream is coming.
+- The quality button now prefers the sources it was given over the renditions a
+  stream declares, and stays hidden when a stream declares only one. A plain
+  media playlist reports a single nameless rendition, and a menu whose only entry
+  reads "Unknown" is worse than no menu.
+- Menu rows no longer wrap onto two lines when a track name is long; the value
+  shortens itself instead.
+- X-Player Desktop, an Electron app built on this library, lives in its own
+  project. It plays any file on disk by putting an ffmpeg gateway behind the same
+  player, and adds no playback engine of its own.
 
 ## 1.0.0
 

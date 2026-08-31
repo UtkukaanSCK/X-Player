@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
-import type { XPlayerProps, XPlayerSource, XPlayerTrack } from './types'
+import type { XPlayerApi, XPlayerAudioTrack, XPlayerProps, XPlayerSource, XPlayerTrack } from './types'
 import { usePlayerState } from './hooks/usePlayerState'
 import { useVideoEngine } from './hooks/useVideoEngine'
 import { useStallGuard } from './hooks/useStallGuard'
@@ -19,6 +19,7 @@ const RATE_STEPS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]
 /** Stable defaults, so a fresh array is not created on every render. */
 const NO_TRACKS: XPlayerTrack[] = []
 const NO_SOURCES: XPlayerSource[] = []
+const NO_AUDIO: XPlayerAudioTrack[] = []
 
 /**
  * A subtitle file on another origin can only be read with crossOrigin set.
@@ -49,6 +50,10 @@ export function XPlayer({
   startTime = 0,
   accent,
   tracks = NO_TRACKS,
+  audioTracks = NO_AUDIO,
+  activeAudioTrack = -1,
+  onAudioTrack,
+  apiRef,
   rememberPosition = true,
   storageKey,
   className,
@@ -406,6 +411,42 @@ export function XPlayer({
     [sources, state.activeSource, dispatch, showToast],
   )
 
+  /**
+   * Reports an audio track choice. Carrying it out belongs to the host: the
+   * player cannot demux a second language out of a file on its own.
+   */
+  const setAudioTrack = useCallback(
+    (id: number) => {
+      const track = audioTracks.find((t) => t.id === id)
+      onAudioTrack?.(id)
+      if (track) showToast(`Audio: ${track.label}`)
+    },
+    [audioTracks, onAudioTrack, showToast],
+  )
+
+  /* ------------------------------------------------------- imperative handle */
+
+  // The engine object is rebuilt on every render, so it cannot be a dependency
+  // without re-publishing the handle constantly. Read it through a ref instead.
+  const engineRef = useRef(engine)
+  engineRef.current = engine
+  const seekToRef = useRef(seekTo)
+  seekToRef.current = seekTo
+
+  useEffect(() => {
+    if (!apiRef) return
+    const api: XPlayerApi = {
+      reload: () => engineRef.current.reload(),
+      seekTo: (seconds) => seekToRef.current(seconds),
+      getVideo: () => videoRef.current,
+    }
+    apiRef.current = api
+    return () => {
+      // Only clear our own handle: a remount may have published a newer one.
+      if (apiRef.current === api) apiRef.current = null
+    }
+  }, [apiRef])
+
   /* -------------------------------------------------------------- subtitles */
 
   // `tracks` is usually an inline array at the call site, so its identity changes
@@ -657,6 +698,8 @@ export function XPlayer({
       <ControlBar
         state={state}
         sources={sources}
+        audioTracks={audioTracks}
+        activeAudioTrack={activeAudioTrack}
         ended={ended}
         seekRefs={seekRefs}
         timeLabelRef={timeLabelRef}
@@ -672,6 +715,7 @@ export function XPlayer({
         onLevel={setLevel}
         onSource={setSource}
         onTextTrack={setTextTrack}
+        onAudioTrack={setAudioTrack}
         onToggleSubtitles={cycleSubtitles}
         onTogglePip={togglePip}
         onToggleFullscreen={toggleFullscreen}

@@ -1,4 +1,35 @@
-import type { CSSProperties } from 'react'
+import type { CSSProperties, RefObject } from 'react'
+
+/**
+ * One selectable audio track: a second language, a commentary, a stereo downmix
+ * next to the 5.1 original.
+ *
+ * The player does not discover these on its own. A file with several audio
+ * streams has to be demuxed to know they exist, which is the host's job - the
+ * desktop app learns them from ffprobe. The player only shows the list and
+ * reports the choice; changing the audio is the host's to carry out.
+ */
+export interface XPlayerAudioTrack {
+  id: number
+  label: string
+  /** BCP-47 language tag, when the file declares one. */
+  language?: string
+}
+
+/**
+ * Imperative handle, for hosts that change what the source means without
+ * changing its URL.
+ *
+ * The desktop app needs exactly this: selecting another audio track changes
+ * server-side state, and the stream then has to be rebuilt in place. `reload`
+ * already keeps the viewer's position, so nothing is lost in the switch.
+ */
+export interface XPlayerApi {
+  /** Rebuild the source from scratch, keeping the current position. */
+  reload: () => void
+  seekTo: (seconds: number) => void
+  getVideo: () => HTMLVideoElement | null
+}
 
 /** One subtitle track (WebVTT). */
 export interface XPlayerTrack {
@@ -54,6 +85,16 @@ export interface XPlayerProps {
   /** Accent color (any CSS color). Overrides the --xp-accent variable. */
   accent?: string
   tracks?: XPlayerTrack[]
+  /**
+   * Selectable audio tracks. Controlled by the host: the player renders the
+   * list and calls `onAudioTrack`, but does not switch anything itself.
+   */
+  audioTracks?: XPlayerAudioTrack[]
+  /** Id of the audio track in use. -1 when there is nothing to choose. */
+  activeAudioTrack?: number
+  onAudioTrack?: (id: number) => void
+  /** Receives the imperative handle once the player is mounted. */
+  apiRef?: RefObject<XPlayerApi | null>
   /** Whether to offer resuming where the viewer left off. Default: on. */
   rememberPosition?: boolean
   /** Key used to remember the position. Defaults to src. */
