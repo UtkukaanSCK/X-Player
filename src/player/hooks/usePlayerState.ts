@@ -21,7 +21,8 @@ export const initialState: PlayerState = {
   blockedAutoplay: false,
 }
 
-function reducer(state: PlayerState, action: PlayerAction): PlayerState {
+/** Exported for its unit tests; the hook below is the only runtime consumer. */
+export function reducer(state: PlayerState, action: PlayerAction): PlayerState {
   switch (action.type) {
     case 'reset':
       // Switching quality goes through this path, and none of these belong to

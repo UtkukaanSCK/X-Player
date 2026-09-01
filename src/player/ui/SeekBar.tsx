@@ -1,5 +1,7 @@
 import { useCallback, useRef, useState, type RefObject } from 'react'
-import { formatTime } from '../format'
+// The hover tooltip is read, so it stays a clock face; the ARIA value is heard,
+// so it becomes words.
+import { formatTime, spokenTime } from '../format'
 
 export interface SeekRefs {
   root: RefObject<HTMLDivElement | null>
@@ -44,7 +46,7 @@ export function SeekBar({ refs, duration, seekingRef, onSeek, onScrub, onActivit
       if (refs.handle.current) refs.handle.current.style.left = `${ratio * 100}%`
       if (refs.root.current) {
         refs.root.current.setAttribute('aria-valuenow', String(Math.round(ratio * duration)))
-        refs.root.current.setAttribute('aria-valuetext', formatTime(ratio * duration))
+        refs.root.current.setAttribute('aria-valuetext', spokenTime(ratio * duration))
       }
     },
     [refs, duration],

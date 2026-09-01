@@ -30,7 +30,9 @@
     "build:lib": "tsc -b && vite build --config vite.lib.config.ts && npm run build:types",
     "build:embed": "vite build --config vite.embed.config.ts && node scripts/sri.mjs",
     "prepare": "npm run build:lib && npm run build:embed",
-    "e2e": "node scripts/e2e/run.mjs"
+    "e2e": "node scripts/e2e/run.mjs",
+    "test": "vitest run",
+    "test:watch": "vitest"
   },
   "peerDependencies": {
     "react": ">=18",
@@ -50,7 +52,8 @@
     "react": "^19.2.8",
     "react-dom": "^19.2.8",
     "typescript": "~6.0.2",
-    "vite": "^8.2.2"
+    "vite": "^8.2.2",
+    "vitest": "^4.1.11"
   },
   "license": "MIT",
   "author": "Utku Kaan",

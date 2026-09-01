@@ -1,0 +1,67 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+# A new push to the same branch makes the previous run pointless.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Types, lint and unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+      - run: npm run typecheck
+      - run: npm run lint
+      - run: npm test
+
+  build:
+    name: Build and end-to-end
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+      - run: npm ci
+
+      # Both bundles, because the embed suite asserts against the built file.
+      - run: npm run build
+
+      - name: Install the browser the suites drive
+        run: npx playwright install --with-deps chromium
+
+      # The suites need something serving the harness and the examples.
+      # Waiting with curl rather than a helper package: one less thing to
+      # install on every run, and one less thing that can go missing.
+      - name: Start the dev server
+        run: |
+          npm run dev -- --port 5173 &
+          for i in $(seq 1 60); do
+            curl -sf http://localhost:5173 >/dev/null && exit 0
+            sleep 1
+          done
+          echo "the dev server never came up" && exit 1
+
+      - run: npm run e2e
+
+      - name: Keep the failure artefacts
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-output
+          path: scripts/e2e/out
+          if-no-files-found: ignore
+          retention-days: 7

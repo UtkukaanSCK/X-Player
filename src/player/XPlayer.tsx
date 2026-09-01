@@ -11,7 +11,7 @@ import { ControlBar } from './ui/ControlBar'
 import { CenterOverlay } from './ui/CenterOverlay'
 import { Toast, useToast } from './ui/Toast'
 import type { SeekRefs } from './ui/SeekBar'
-import { formatTime } from './format'
+import { formatTime, spokenTime } from './format'
 import './styles/player.css'
 
 const RATE_STEPS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]
@@ -148,7 +148,8 @@ export function XPlayer({
       const root = seekRefs.root.current
       if (root) {
         root.setAttribute('aria-valuenow', String(Math.round(video.currentTime)))
-        root.setAttribute('aria-valuetext', formatTime(video.currentTime))
+        // Spoken, not a clock face: a screen reader reads "1:05" as digits.
+        root.setAttribute('aria-valuetext', spokenTime(video.currentTime))
       }
       const label = formatTime(video.currentTime)
       const node = timeLabelRef.current

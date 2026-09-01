@@ -24,6 +24,15 @@
 - X-Player Desktop, an Electron app built on this library, lives in its own
   project. It plays any file on disk by putting an ffmpeg gateway behind the same
   player, and adds no playback engine of its own.
+- The seek bar now announces its position in words. It was reporting
+  `aria-valuetext="1:05"`, which a screen reader reads out as digits; it now says
+  "1 minute 5 seconds". `spokenTime` had been written for exactly this and was
+  never wired up.
+- Unit tests cover the time formatting and the state reducer, including the two
+  faults that came out of it before: subtitles cleared by a quality switch, and
+  actions that changed nothing returning a new object and driving a render loop.
+- Continuous integration runs the type check, the linter, the unit tests, both
+  builds and both end-to-end suites on every push.
 
 ## 1.0.0
 

@@ -185,6 +185,9 @@ page's around it. It is never published; the artefacts are the two builds below.
 
 ### Tests
 
+`npm test` runs the unit tests: the time formatting, and the state reducer with
+both of the faults it once had pinned in place.
+
 `npm run e2e` needs `npm run dev` up, or set `BASE_URL`. Two suites:
 
 | Suite | What it proves |
