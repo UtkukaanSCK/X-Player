@@ -33,6 +33,12 @@
   actions that changed nothing returning a new object and driving a render loop.
 - Continuous integration runs the type check, the linter, the unit tests, both
   builds and both end-to-end suites on every push.
+- Stall recovery no longer blanks the picture. On a progressive source it nudged
+  the playhead forward whenever playback stopped, including when the buffer was
+  simply empty - which cleared the frame and got nothing back, because the bytes
+  it was seeking towards were not there. It now only nudges when there is data
+  ahead to nudge into, so a starved player holds its last frame the way a bare
+  video element does.
 
 ## 1.0.0
 

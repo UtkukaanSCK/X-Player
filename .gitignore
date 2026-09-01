@@ -30,3 +30,4 @@ node_modules_pw
 # Separate projects that consume this library, kept out of this repository.
 site
 app
+web

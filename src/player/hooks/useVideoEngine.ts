@@ -231,12 +231,30 @@ export function useVideoEngine({ videoRef, src, type, startTimeRef, dispatch, on
       return
     }
     if (video) {
-      // On a progressive source a tiny forward jump usually unsticks playback.
+      /*
+       * On a progressive source a tiny forward jump usually unsticks a decoder
+       * that has data but has stopped using it.
+       *
+       * Only when it has data, though. Seeking clears the picture until the new
+       * position decodes, so nudging a video that is simply starved trades a
+       * held frame for a black rectangle and gets nothing back - the bytes it
+       * needs are not there to find. On a bad connection that made this player
+       * look worse than a bare video element, which sat on its last frame and at
+       * least showed something.
+       */
       const t = video.currentTime
-      try {
-        video.currentTime = Math.min(t + 0.1, Math.max(t, video.duration || t))
-      } catch {
-        /* ignore */
+      const ranges = video.buffered
+      let bufferedAhead = 0
+      for (let i = 0; i < ranges.length; i++) {
+        if (ranges.start(i) <= t + 0.25 && ranges.end(i) > t) bufferedAhead = ranges.end(i) - t
+      }
+
+      if (bufferedAhead > 0.3) {
+        try {
+          video.currentTime = Math.min(t + 0.1, Math.max(t, video.duration || t))
+        } catch {
+          /* ignore */
+        }
       }
       void video.play().catch(() => {})
     }
