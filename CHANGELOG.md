@@ -10,7 +10,9 @@
   `npm run dev` opens a development harness in `src/dev` instead.
 - Audio tracks can be offered in the settings menu through `audioTracks`,
   `activeAudioTrack` and `onAudioTrack`. Controlled by the host: a file has to be
-  demuxed to know a second language is in it, which is not the player's job.
+  demuxed to know a second language is in it, which is not the player's job. When
+  `activeAudioTrack` matches nothing in the list the row stays blank rather than
+  naming the first track, which the panel would then decline to tick.
 - `apiRef` hands back `{ reload, seekTo, getVideo }`, for hosts that change what
   a source means without changing its URL — picking another audio track, say.
 - `preloadHls()` fetches the HLS engine ahead of time, for a host that knows a
@@ -27,12 +29,16 @@
 - The seek bar now announces its position in words. It was reporting
   `aria-valuetext="1:05"`, which a screen reader reads out as digits; it now says
   "1 minute 5 seconds". `spokenTime` had been written for exactly this and was
-  never wired up.
+  never wired up. Both spoken and numeric values settle a non-finite duration
+  first: a live stream reports `Infinity`, and `Infinity % 60` is `NaN`, so
+  scrubbing one used to announce "Infinity hours NaN seconds".
 - Unit tests cover the time formatting and the state reducer, including the two
   faults that came out of it before: subtitles cleared by a quality switch, and
   actions that changed nothing returning a new object and driving a render loop.
 - Continuous integration runs the type check, the linter, the unit tests, both
-  builds and both end-to-end suites on every push.
+  builds and both end-to-end suites on every push. It installs with
+  `--ignore-scripts`, or the `prepare` script builds the library during install
+  and every push pays for three builds instead of one.
 - Stall recovery no longer blanks the picture. On a progressive source it nudged
   the playhead forward whenever playback stopped, including when the buffer was
   simply empty - which cleared the frame and got nothing back, because the bytes

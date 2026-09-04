@@ -55,4 +55,13 @@ describe('spokenTime', () => {
   it('never announces a negative position', () => {
     expect(spokenTime(-5)).toBe('0 seconds')
   })
+
+  // The seek bar feeds this the scrub position, which is ratio * duration. On a
+  // live stream duration is Infinity, so the whole family has to collapse to
+  // silence rather than to "Infinity hours NaN seconds".
+  it('survives what a live stream reports for a duration', () => {
+    expect(spokenTime(Number.POSITIVE_INFINITY)).toBe('0 seconds')
+    expect(spokenTime(Number.NEGATIVE_INFINITY)).toBe('0 seconds')
+    expect(spokenTime(Number.NaN)).toBe('0 seconds')
+  })
 })

@@ -21,7 +21,11 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-      - run: npm ci
+      # --ignore-scripts skips the package prepare script, which builds the
+      # library and the embed bundle. This job only typechecks, lints and runs
+      # unit tests, none of which read dist. No dependency here has an install
+      # script, so prepare is the only thing being skipped.
+      - run: npm ci --ignore-scripts
       - run: npm run typecheck
       - run: npm run lint
       - run: npm test
@@ -35,7 +39,9 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: npm
-      - run: npm ci
+      # Without this, prepare builds both bundles during install and the
+      # explicit build below does it all over again.
+      - run: npm ci --ignore-scripts
 
       # Both bundles, because the embed suite asserts against the built file.
       - run: npm run build

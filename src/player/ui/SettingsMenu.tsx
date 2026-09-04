@@ -49,7 +49,10 @@ export function SettingsMenu({
 
   const subtitleLabel =
     state.activeTextTrack === -1 ? 'Off' : (state.textTracks[state.activeTextTrack]?.label ?? 'Off')
-  const audioLabel = audioTracks.find((t) => t.id === activeAudioTrack)?.label ?? audioTracks[0]?.label ?? ''
+  // No fallback to the first track: the panel ticks the row whose id matches,
+  // so naming a track here that the panel would not tick makes the closed row
+  // claim a selection that does not exist. Empty is the honest answer.
+  const audioLabel = audioTracks.find((t) => t.id === activeAudioTrack)?.label ?? ''
 
   return (
     <div className="xp-settings" ref={wrapRef}>

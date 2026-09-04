@@ -11,7 +11,11 @@ export function formatTime(seconds: number): string {
 
 /** Readable duration for screen readers, e.g. "3 minutes 5 seconds". */
 export function spokenTime(seconds: number): string {
-  const total = Math.max(0, Math.floor(seconds))
+  // Same guard as formatTime, and for the same reason: a live stream reports a
+  // duration of Infinity, and Infinity % 60 is NaN. Without this the seek bar
+  // announces "Infinity hours NaN seconds" to anyone listening to it.
+  if (!Number.isFinite(seconds) || seconds < 0) seconds = 0
+  const total = Math.floor(seconds)
   const s = total % 60
   const m = Math.floor(total / 60) % 60
   const h = Math.floor(total / 3600)

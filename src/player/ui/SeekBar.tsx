@@ -45,8 +45,11 @@ export function SeekBar({ refs, duration, seekingRef, onSeek, onScrub, onActivit
       if (refs.played.current) refs.played.current.style.transform = `scaleX(${ratio})`
       if (refs.handle.current) refs.handle.current.style.left = `${ratio * 100}%`
       if (refs.root.current) {
-        refs.root.current.setAttribute('aria-valuenow', String(Math.round(ratio * duration)))
-        refs.root.current.setAttribute('aria-valuetext', spokenTime(ratio * duration))
+        // A live stream has a duration of Infinity, which makes both of these
+        // nonsense unless the seconds are settled first.
+        const seconds = Number.isFinite(ratio * duration) ? ratio * duration : 0
+        refs.root.current.setAttribute('aria-valuenow', String(Math.round(seconds)))
+        refs.root.current.setAttribute('aria-valuetext', spokenTime(seconds))
       }
     },
     [refs, duration],
