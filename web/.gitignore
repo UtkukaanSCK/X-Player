@@ -1,0 +1,13 @@
+node_modules
+
+# Copied from the player build by scripts/sync-player.mjs.
+vendor
+.next
+out
+next-env.d.ts
+*.tsbuildinfo
+.DS_Store
+
+# Copied from the player build by scripts/sync-player.mjs.
+public/downloads
+lib/generated

@@ -30,7 +30,11 @@ node_modules_pw
 # Separate projects that consume this library, kept out of this repository.
 site
 app
-web
+
+# The site is here rather than out: GitHub Pages builds it from this repository,
+# and keeping it alongside the player is what makes the version it advertises
+# checkable against the version being shipped. Its own .gitignore covers
+# everything scripts/sync-player.mjs copies in.
 
 # Claude Code configuration is per-developer and lives in ~/.claude at user
 # scope. Nothing about how the repository is edited belongs in the repository.
