@@ -31,3 +31,7 @@ node_modules_pw
 site
 app
 web
+
+# Claude Code configuration is per-developer and lives in ~/.claude at user
+# scope. Nothing about how the repository is edited belongs in the repository.
+.claude/
