@@ -27,5 +27,12 @@ dist-ssr
 scripts/e2e/out
 node_modules_pw
 
-# The landing site is a separate project kept out of this repository.
+# Separate projects that live beside this one: an older landing site, and the
+# desktop app, which has its own repository.
 site
+app
+
+# The site is not ignored: GitHub Pages builds it from this repository, and
+# keeping it beside the player is what makes the version it advertises
+# checkable against the version being shipped. Its own .gitignore covers
+# everything scripts/sync-player.mjs copies in.

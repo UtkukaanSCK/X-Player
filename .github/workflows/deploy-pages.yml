@@ -1,0 +1,96 @@
+name: Deploy the site
+
+# The site is built from this repository and published to GitHub Pages.
+#
+# It cannot be built on its own: web/scripts/sync-player.mjs copies the compiled
+# player out of ../dist, so the library is built first and the site second.
+on:
+  push:
+    branches: [main]
+    # Anything the site is made of, which includes the player itself.
+    paths:
+      - 'web/**'
+      - 'src/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/deploy-pages.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time, and never cancel one halfway: a cancelled publish
+# can leave the live site on a half-uploaded artefact.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: npm
+
+      - name: Work out where the site will live
+        id: where
+        run: |
+          owner=$(printf '%s' "${{ github.repository_owner }}" | tr '[:upper:]' '[:lower:]')
+          repo="${{ github.event.repository.name }}"
+          # A repository named <owner>.github.io is served from the domain root;
+          # every other one is served from /<repo>/ and needs that prefix baked
+          # into the export. Deriving it here keeps it from being written down in
+          # two places that can disagree.
+          if [ "$(printf '%s' "$repo" | tr '[:upper:]' '[:lower:]')" = "$owner.github.io" ]; then
+            echo "base=" >> "$GITHUB_OUTPUT"
+            echo "url=https://$owner.github.io" >> "$GITHUB_OUTPUT"
+          else
+            echo "base=$repo" >> "$GITHUB_OUTPUT"
+            echo "url=https://$owner.github.io/$repo" >> "$GITHUB_OUTPUT"
+          fi
+
+      # --ignore-scripts, or the package prepare script builds the library here
+      # and the explicit build below does it all over again.
+      - run: npm ci --ignore-scripts
+      - name: Build the player
+        run: npm run build
+
+      - run: npm ci --ignore-scripts
+        working-directory: web
+      - name: Build the site
+        working-directory: web
+        env:
+          NEXT_PUBLIC_BASE_PATH: ${{ steps.where.outputs.base }}
+          NEXT_PUBLIC_SITE_URL: ${{ steps.where.outputs.url }}
+        run: npm run build
+
+      # Jekyll is on by default and drops every path beginning with an
+      # underscore, which is where Next puts all of its bundles. The file comes
+      # from web/public, and this fails the build rather than publishing a site
+      # whose every asset 404s.
+      - name: Check the export is not about to be run through Jekyll
+        run: test -f web/out/.nojekyll
+
+      # enablement turns Pages on for the repository if it is off, so the first
+      # run does not need someone to visit Settings first. Harmless once it is on.
+      - uses: actions/configure-pages@v5
+        with:
+          enablement: true
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: web/out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
