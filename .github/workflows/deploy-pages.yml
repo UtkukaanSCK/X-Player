@@ -13,6 +13,9 @@ on:
       - 'src/**'
       - 'package.json'
       - 'package-lock.json'
+      # setup-node reads this file, so a change to it changes the build.
+      # Leaving it out meant a Node bump would ship nothing.
+      - '.nvmrc'
       - '.github/workflows/deploy-pages.yml'
   workflow_dispatch:
 
