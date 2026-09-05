@@ -26,6 +26,8 @@ interface Props {
   seekRefs: SeekRefs
   timeLabelRef: RefObject<HTMLSpanElement | null>
   seekingRef: RefObject<boolean>
+  /** Draws a dragged-to position, through the same painter the play loop uses. */
+  drawRatio: (ratio: number, duration: number) => void
   pipSupported: boolean
   onTogglePlay: () => void
   onSeek: (seconds: number) => void
@@ -57,6 +59,7 @@ export function ControlBar(props: Props) {
         refs={props.seekRefs}
         duration={state.duration}
         seekingRef={props.seekingRef}
+        drawRatio={props.drawRatio}
         onSeek={props.onSeek}
         onScrub={props.onScrub}
         onActivity={props.onActivity}

@@ -1,105 +1,89 @@
 import { useCallback, useRef, useState, type RefObject } from 'react'
-// The hover tooltip is read, so it stays a clock face; the ARIA value is heard,
-// so it becomes words.
-import { formatTime, spokenTime } from '../format'
+// The tooltip is read, so it stays a clock face; the ARIA value is heard, so
+// it becomes words - and that one lives in the painter, with the other sinks.
+import { formatTime } from '../format'
+import type { SeekRefs } from '../hooks/useProgressPaint'
 
-export interface SeekRefs {
-  root: RefObject<HTMLDivElement | null>
-  played: RefObject<HTMLDivElement | null>
-  buffered: RefObject<HTMLDivElement | null>
-  handle: RefObject<HTMLDivElement | null>
-}
+export type { SeekRefs }
+
+/** Beyond this the press is a drag, and the tooltip follows without seeking. */
+const SCRUB_INTERVAL_MS = 120
 
 interface Props {
   refs: SeekRefs
   duration: number
-  /** While dragging, the rAF loop stops writing to the DOM. */
+  /** While dragging, the rAF loop stops reading the video's position. */
   seekingRef: RefObject<boolean>
+  /** Draws a dragged-to position. The same painter the play loop uses. */
+  drawRatio: (ratio: number, duration: number) => void
   onSeek: (seconds: number) => void
   onScrub: (seconds: number) => void
   onActivity: () => void
 }
 
 /**
- * The progress bar. Dragging never touches React state: the bar and the handle
- * are written straight to the DOM, so no frames are dropped.
+ * The progress bar. Dragging never touches React state for the position: the
+ * bar and the handle are written straight to the DOM, so no frames are dropped.
  */
-export function SeekBar({ refs, duration, seekingRef, onSeek, onScrub, onActivity }: Props) {
+export function SeekBar({ refs, duration, seekingRef, drawRatio, onSeek, onScrub, onActivity }: Props) {
   const [hover, setHover] = useState<{ x: number; time: number } | null>(null)
   const draggingRef = useRef(false)
   const lastScrubRef = useRef(0)
 
-  const ratioFromEvent = useCallback(
+  const ratioAt = useCallback(
     (clientX: number) => {
       const el = refs.root.current
       if (!el) return 0
-      const rect = el.getBoundingClientRect()
-      if (rect.width === 0) return 0
-      return Math.min(1, Math.max(0, (clientX - rect.left) / rect.width))
+      const { left, width } = el.getBoundingClientRect()
+      if (width === 0) return 0
+      return Math.min(1, Math.max(0, (clientX - left) / width))
     },
     [refs.root],
   )
 
-  const paint = useCallback(
-    (ratio: number) => {
-      if (refs.played.current) refs.played.current.style.transform = `scaleX(${ratio})`
-      if (refs.handle.current) refs.handle.current.style.left = `${ratio * 100}%`
-      if (refs.root.current) {
-        // A live stream has a duration of Infinity, which makes both of these
-        // nonsense unless the seconds are settled first.
-        const seconds = Number.isFinite(ratio * duration) ? ratio * duration : 0
-        refs.root.current.setAttribute('aria-valuenow', String(Math.round(seconds)))
-        refs.root.current.setAttribute('aria-valuetext', spokenTime(seconds))
-      }
-    },
-    [refs, duration],
-  )
-
-  const onPointerDown = useCallback(
+  const beginDrag = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       if (!duration) return
       e.preventDefault()
-      const el = e.currentTarget
-      el.setPointerCapture(e.pointerId)
+      e.currentTarget.setPointerCapture(e.pointerId)
       draggingRef.current = true
       seekingRef.current = true
-      const ratio = ratioFromEvent(e.clientX)
-      paint(ratio)
+      const ratio = ratioAt(e.clientX)
+      drawRatio(ratio, duration)
       onScrub(ratio * duration)
       lastScrubRef.current = performance.now()
       onActivity()
     },
-    [duration, ratioFromEvent, paint, onScrub, seekingRef, onActivity],
+    [duration, ratioAt, drawRatio, onScrub, seekingRef, onActivity],
   )
 
-  const onPointerMove = useCallback(
+  const trackPointer = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       if (!duration) return
-      const ratio = ratioFromEvent(e.clientX)
-
-      if (draggingRef.current) {
-        paint(ratio)
-        setHover({ x: ratio, time: ratio * duration })
-        // Seek for real now and then so the frame updates live, but not on every
-        // pointermove, or the browser drowns in seek requests.
-        const now = performance.now()
-        if (now - lastScrubRef.current > 120) {
-          lastScrubRef.current = now
-          onScrub(ratio * duration)
-        }
-        return
-      }
+      const ratio = ratioAt(e.clientX)
       setHover({ x: ratio, time: ratio * duration })
+      if (!draggingRef.current) return
+
+      drawRatio(ratio, duration)
+      /*
+       * Seek for real now and then, so the picture keeps up with the handle.
+       * Every pointermove would drown the browser in seek requests.
+       */
+      const now = performance.now()
+      if (now - lastScrubRef.current > SCRUB_INTERVAL_MS) {
+        lastScrubRef.current = now
+        onScrub(ratio * duration)
+      }
     },
-    [duration, ratioFromEvent, paint, onScrub],
+    [duration, ratioAt, drawRatio, onScrub],
   )
 
-  const finish = useCallback(
+  const endDrag = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       if (!draggingRef.current) return
       draggingRef.current = false
-      const ratio = ratioFromEvent(e.clientX)
-      paint(ratio)
+      const ratio = ratioAt(e.clientX)
+      drawRatio(ratio, duration)
       onSeek(ratio * duration)
       seekingRef.current = false
       try {
@@ -108,7 +92,7 @@ export function SeekBar({ refs, duration, seekingRef, onSeek, onScrub, onActivit
         /* already released */
       }
     },
-    [duration, ratioFromEvent, paint, onSeek, seekingRef],
+    [duration, ratioAt, drawRatio, onSeek, seekingRef],
   )
 
   return (
@@ -122,10 +106,10 @@ export function SeekBar({ refs, duration, seekingRef, onSeek, onScrub, onActivit
         aria-valuemin={0}
         aria-valuemax={Math.round(duration) || 0}
         aria-valuenow={0}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={finish}
-        onPointerCancel={finish}
+        onPointerDown={beginDrag}
+        onPointerMove={trackPointer}
+        onPointerUp={endDrag}
+        onPointerCancel={endDrag}
         onPointerLeave={() => !draggingRef.current && setHover(null)}
       >
         <div className="xp-seek-track">

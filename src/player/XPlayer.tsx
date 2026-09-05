@@ -10,8 +10,8 @@ import { useResume } from './hooks/useResume'
 import { ControlBar } from './ui/ControlBar'
 import { CenterOverlay } from './ui/CenterOverlay'
 import { Toast, useToast } from './ui/Toast'
-import type { SeekRefs } from './ui/SeekBar'
-import { formatTime, spokenTime } from './format'
+import { useProgressPaint, type SeekRefs } from './hooks/useProgressPaint'
+import { formatTime } from './format'
 import './styles/player.css'
 
 const RATE_STEPS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]
@@ -135,55 +135,13 @@ export function XPlayer({
 
   /* --------------------------------------------------------------- painting */
 
-  const paint = useCallback(() => {
-    const video = videoRef.current
-    if (!video) return
-    const duration = video.duration
-    if (!Number.isFinite(duration) || duration <= 0) return
-
-    if (!seekingRef.current) {
-      const ratio = Math.min(1, video.currentTime / duration)
-      if (seekRefs.played.current) seekRefs.played.current.style.transform = `scaleX(${ratio})`
-      if (seekRefs.handle.current) seekRefs.handle.current.style.left = `${ratio * 100}%`
-      const root = seekRefs.root.current
-      if (root) {
-        root.setAttribute('aria-valuenow', String(Math.round(video.currentTime)))
-        // Spoken, not a clock face: a screen reader reads "1:05" as digits.
-        root.setAttribute('aria-valuetext', spokenTime(video.currentTime))
-      }
-      const label = formatTime(video.currentTime)
-      const node = timeLabelRef.current
-      if (node && node.textContent !== label) node.textContent = label
-    }
-
-    // End of the buffered range we are currently inside.
-    let bufferedEnd = 0
-    const ranges = video.buffered
-    for (let i = 0; i < ranges.length; i++) {
-      if (ranges.start(i) <= video.currentTime + 0.25 && ranges.end(i) > bufferedEnd) {
-        bufferedEnd = ranges.end(i)
-      }
-    }
-    if (seekRefs.buffered.current) {
-      seekRefs.buffered.current.style.transform = `scaleX(${Math.min(1, bufferedEnd / duration)})`
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  // While playing, write to the DOM every frame and never touch React state.
-  useEffect(() => {
-    if (!state.playing) {
-      paint()
-      return
-    }
-    let raf = 0
-    const tick = () => {
-      paint()
-      raf = requestAnimationFrame(tick)
-    }
-    raf = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(raf)
-  }, [state.playing, paint])
+  const { paint, drawRatio } = useProgressPaint({
+    videoRef,
+    refs: seekRefs,
+    timeLabelRef,
+    seekingRef,
+    playing: state.playing,
+  })
 
   /* ----------------------------------------------------------- video events */
 
@@ -705,6 +663,7 @@ export function XPlayer({
         seekRefs={seekRefs}
         timeLabelRef={timeLabelRef}
         seekingRef={seekingRef}
+        drawRatio={drawRatio}
         pipSupported={pipSupported}
         onTogglePlay={togglePlay}
         onSeek={seekTo}
