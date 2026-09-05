@@ -91,9 +91,6 @@ export function XPlayer({
   const resumeAfterSwitchRef = useRef(false)
   const { toast, show: showToast } = useToast()
 
-  const playingRef = useRef(false)
-  playingRef.current = state.playing
-
   const handlersRef = useRef({ onReady, onPlay, onPause, onEnded, onError })
   handlersRef.current = { onReady, onPlay, onPause, onEnded, onError }
 
@@ -118,7 +115,7 @@ export function XPlayer({
     dispatch,
     onFatal,
   })
-  useStallGuard({ videoRef, playingRef, dispatch, softRecover: engine.softRecover })
+  useStallGuard({ videoRef, playing: state.playing, dispatch, softRecover: engine.softRecover })
 
   // Which video this is, independent of which rendition is playing. Switching
   // quality must not look like a different video to anything downstream.
