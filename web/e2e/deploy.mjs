@@ -41,11 +41,20 @@ for (const [path, expectedType] of [
   ['/og.png', 'image/png'],
   ['/robots.txt', 'text/plain'],
   ['/sitemap.xml', 'application/xml'],
-  ['/x-player-netsim-sw.js', 'text/javascript'],
+    /* Two spellings, both correct. text/javascript is what the current spec
+       prefers and application/javascript is what RFC 4329 said; hosts differ
+       and browsers take either. Pinning one failed a deployment that was
+       serving the worker perfectly well. */
+    ['/x-player-netsim-sw.js', ['text/javascript', 'application/javascript']],
   ['/media/demo-long.mp4', 'video/mp4'],
 ]) {
   const res = await head(path)
-  check(`${path} is served as ${expectedType}`, res.status === 200 && res.type.startsWith(expectedType), `${res.status} ${res.type}`)
+    const accepted = Array.isArray(expectedType) ? expectedType : [expectedType]
+    check(
+      `${path} is served as ${accepted.join(' or ')}`,
+      res.status === 200 && accepted.some((type) => res.type.startsWith(type)),
+      `${res.status} ${res.type}`,
+    )
 }
 
 const missing = await head('/a-page-that-does-not-exist')
