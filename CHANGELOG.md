@@ -45,6 +45,42 @@
   it was seeking towards were not there. It now only nudges when there is data
   ahead to nudge into, so a starved player holds its last frame the way a bare
   video element does.
+- The interface is English throughout. Two toasts still spoke Turkish - seeking
+  said `+10 sn`, the volume said `Ses %60` - and so did the embed API: the error
+  thrown for a missing mount target, the two `console.warn` calls about a bad
+  `data-tracks` or a missing `data-src`, and the doc comments on `PlayerHandle`.
+- A long file name no longer covers the picture. The title had nothing stopping
+  it, so a release-group name wrapped to three or four lines behind its gradient.
+- The resume position survives being paused. The save was skipped whenever the
+  video was paused, which was right for the periodic save and wrong for the same
+  function used on unmount and on `pagehide` - the two moments it matters most.
+  Pausing, seeking and closing lost the seek. It is also saved on
+  `visibilitychange`: a phone that backgrounds the tab and then has it reclaimed
+  never fires `pagehide`, which is exactly where playback gets interrupted. A
+  live stream no longer has a position written for it, and no longer has one
+  offered either - `Infinity` is truthy, so the read path had been letting
+  through positions the write path would now refuse to record.
+- The controls no longer fade out from under the keyboard, leaving the focused
+  control invisible and unreachable behind `pointer-events: none`. Every path
+  that hides now checks focus, not just the pointer-leave one: leaving the
+  player is always preceded by a pointer move, which re-arms the hide timer, so
+  guarding one path alone only delayed the same disappearance by 2.5 seconds.
+  The container carries `tabIndex={0}` and collects focus from any click that
+  lands on nothing focusable, so it is excluded - counting it would have held
+  the bar open for the whole of an ordinary click to play.
+- Returning to a settings sub-panel puts focus on its back button rather than
+  partway down the option list. The button had no `role`, which also made it an
+  invalid child of `role="menu"`; it is a `menuitem` now, which fixes both.
+- Dismissing a menu by clicking elsewhere on the page no longer pulls focus back
+  onto the settings button. Closing unmounts the focused item, and the resulting
+  `focusout` looks exactly like focus falling out of a menu that is staying
+  open - on an embedded player, that meant stealing focus from the host page.
+- Playback errors are announced. The message was a bare paragraph, so the one
+  moment a screen-reader user most needs telling was the one moment nothing was
+  said.
+- Choosing an option in a menu no longer drops focus to the document. The click
+  unmounts the button that had focus, and the next Tab restarted from the top of
+  the page rather than from the menu.
 
 ## 1.0.0
 
