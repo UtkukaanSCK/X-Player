@@ -236,6 +236,66 @@ for (const width of [390, 768, 1024, 1440]) {
   check(`no text is cut off at ${width}px`, bad.cut.length === 0, bad.cut.join(', ') || 'clean')
 }
 
+/* ------------------------------------------------------------- touch targets */
+
+/*
+ * WCAG 2.2's 2.5.8, checked at the width where it bites.
+ *
+ * The player's own controls are excluded, not forgiven: they are 36px and they
+ * belong to the library in src/player, which is a different tree with its own
+ * tests. What this asserts is that nothing the site itself puts under a thumb
+ * is too small for one.
+ */
+await page.setViewportSize({ width: 390, height: 844 })
+/* At the top of the page, which is the worst case: the comparison stage rests
+   at scale(0.94) until it is scrolled, so a 44px control is 41px on screen
+   there. Measuring wherever the page happened to be left made this pass. */
+await page.evaluate(() => window.scrollTo(0, 0))
+await page.waitForTimeout(900)
+await page.waitForTimeout(700)
+const small = await page.evaluate(() => {
+  const out = []
+  for (const el of document.querySelectorAll('a,button,[role="radio"],input,select')) {
+    if (el.closest('.xp-root')) continue
+    const r = el.getBoundingClientRect()
+    if (r.width < 1 || r.height < 1) continue
+    if (r.width < 44 || r.height < 44) {
+      out.push({
+        label: (el.getAttribute('aria-label') ?? el.textContent ?? el.tagName).trim().slice(0, 24),
+        w: Math.round(r.width),
+        h: Math.round(r.height),
+      })
+    }
+  }
+  return out
+})
+check('every control the site owns is at least 44px on a phone', small.length === 0, JSON.stringify(small.slice(0, 5)))
+
+/* The metered path renders a control the fast path never does, so the sweep
+   above had no way to see it. It was 42px. */
+const metered = await browser.newContext({ viewport: { width: 390, height: 844 } })
+await metered.addInitScript(() =>
+  Object.defineProperty(navigator, 'connection', {
+    configurable: true,
+    get: () => ({ saveData: true, effectiveType: '4g' }),
+  }),
+)
+const meteredPage = await metered.newPage()
+await meteredPage.goto(BASE, { waitUntil: 'domcontentloaded' })
+await meteredPage.waitForTimeout(4000)
+const meteredSmall = await meteredPage.evaluate(() =>
+  [...document.querySelectorAll('a,button,[role="radio"]')]
+    .filter((el) => {
+      if (el.closest('.xp-root')) return false
+      const r = el.getBoundingClientRect()
+      return r.width > 0 && (r.width < 44 || r.height < 44)
+    })
+    .map((el) => ({ label: el.textContent.trim().slice(0, 24), h: Math.round(el.getBoundingClientRect().height) })),
+)
+check('the metered path has big enough controls too', meteredSmall.length === 0, JSON.stringify(meteredSmall))
+await metered.close()
+await page.setViewportSize({ width: 1440, height: 900 })
+
 check('no uncaught errors', pageErrors.length === 0, pageErrors.join(' | '))
 
 await browser.close()

@@ -5,6 +5,7 @@ import { motion, useMotionValueEvent, useReducedMotion, useScroll, useTransform 
 import { XPlayer } from 'x-player'
 import 'x-player/style.css'
 import { useNetworkSim, type NetworkMode } from '@/hooks/useNetworkSim'
+import { useFrugalConnection } from '@/hooks/useFrugalConnection'
 import { useReading } from '@/hooks/useReading'
 import { withBase } from '@/lib/site'
 import { ProofHeading } from './ProofHeading'
@@ -85,7 +86,20 @@ export function Proof() {
    * starts.
    */
   const ready = status.kind === 'ready'
-  const src = ready ? CLIP : undefined
+
+  /*
+   * Twelve megabytes is not spent on a metered connection without asking.
+   *
+   * Two players streaming the same two-minute clip is what the comparison is;
+   * it cannot be made cheap without making it dishonest, since a clip small
+   * enough to be cheap is one a throttle cannot starve. So on a link that has
+   * asked to be spent carefully the apparatus is built and left waiting, and
+   * the visitor decides. Everyone else sees it run exactly as before.
+   */
+  const frugal = useFrugalConnection()
+  const [consented, setConsented] = useState(false)
+  const holding = frugal && !consented
+  const src = ready && !holding ? CLIP : undefined
 
   /** Once someone picks a condition themselves, scrolling stops overriding it. */
   const manual = useRef(false)
@@ -122,8 +136,8 @@ export function Proof() {
   const current = MODES.find((m) => m.id === mode) ?? MODES[0]
 
   return (
-    <section ref={container} id="proof" aria-labelledby="proof-heading" className="relative h-[200vh]">
-      <div className="sticky top-0 flex h-screen flex-col justify-center gap-5 overflow-hidden px-5 py-5 sm:px-8">
+    <section ref={container} id="proof" aria-labelledby="proof-heading" className="relative h-[200svh]">
+      <div className="sticky top-0 flex h-svh flex-col justify-center gap-5 overflow-hidden px-5 py-5 sm:px-8">
         <ProofHeading />
 
         <motion.div
@@ -186,24 +200,30 @@ export function Proof() {
             </Panel>
           </div>
 
-          <Controls
-            mode={mode}
-            detail={current.detail}
-            unavailable={status.kind === 'unavailable' ? status.reason : null}
-            pending={status.kind === 'pending'}
-            onPick={(next) => {
-              manual.current = true
-              change(next)
-            }}
-          />
+          {holding ? (
+            <Consent onStart={() => setConsented(true)} />
+          ) : (
+            <Controls
+              mode={mode}
+              detail={current.detail}
+              unavailable={status.kind === 'unavailable' ? status.reason : null}
+              pending={status.kind === 'pending'}
+              onPick={(next) => {
+                manual.current = true
+                change(next)
+              }}
+            />
+          )}
 
-          <p
-            key={mode}
-            className="mx-auto max-w-3xl text-center text-body leading-relaxed text-muted sm:text-lead"
-            aria-live="polite"
-          >
-            {VERDICT[mode]}
-          </p>
+          {!holding && (
+            <p
+              key={mode}
+              className="mx-auto max-w-3xl text-center text-body leading-relaxed text-muted sm:text-lead"
+              aria-live="polite"
+            >
+              {VERDICT[mode]}
+            </p>
+          )}
         </motion.div>
       </div>
     </section>
@@ -325,7 +345,7 @@ function Controls({
               disabled={pending}
               onClick={() => onPick(m.id)}
               onKeyDown={(event) => onKeyDown(event, index)}
-              className={`flex-1 rounded-md px-3 py-2 font-mono text-caption transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-good disabled:opacity-40 ${
+              className={`flex-1 min-h-12 rounded-md px-3 py-2 font-mono text-caption transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-good disabled:opacity-40 ${
                 on ? 'bg-good/15 text-good' : 'text-muted hover:bg-raised hover:text-paper active:bg-line'
               }`}
             >
@@ -342,6 +362,31 @@ function Controls({
       <p className="mx-auto max-w-md text-center text-caption leading-relaxed text-muted">
         This page throttles its own connection with a service worker. Both players get the same bytes at the
         same moment.
+      </p>
+    </div>
+  )
+}
+
+/**
+ * Shown instead of the controls when the connection has asked for restraint.
+ *
+ * It says the number rather than hiding it. A page whose whole argument is
+ * that it tells you what is happening cannot quietly spend twelve megabytes
+ * and then explain itself afterwards.
+ */
+function Consent({ onStart }: { onStart: () => void }) {
+  return (
+    <div className="mx-auto flex w-full max-w-2xl flex-col items-center gap-3 text-center">
+      <button
+        type="button"
+        onClick={onStart}
+        className="min-h-12 rounded-lg bg-good px-6 py-3 text-body font-semibold text-[#1a1206] transition-colors hover:bg-[#ffc04a] active:bg-[#e59a17] focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-good"
+      >
+        Play the comparison
+      </button>
+      <p className="max-w-md text-caption leading-relaxed text-muted">
+        It streams the same two-minute clip to both players, about 12 MB. Your browser said this
+        connection should be spent carefully, so it is waiting for you.
       </p>
     </div>
   )

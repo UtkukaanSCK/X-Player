@@ -146,6 +146,52 @@ const narrow = await page.evaluate(() => ({
 check('no horizontal overflow on a phone', narrow.overflow <= 1, `${narrow.overflow}px`)
 check('the two players stay side by side on a phone', narrow.sideBySide, 'stacked, they are not a comparison')
 
+/* --------------------------------------------------- the metered-link path */
+
+/*
+ * The comparison costs about twelve megabytes, because two players streaming
+ * the same two-minute clip is what it is. On a connection that has asked to be
+ * spent carefully it must build the apparatus and wait, and it must say the
+ * number rather than spending it and explaining afterwards.
+ *
+ * Both directions are checked. A guard that holds everything back is easy and
+ * useless; the one that matters is that nobody else is affected.
+ */
+for (const saveData of [true, false]) {
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } })
+  await context.addInitScript((on) => {
+    Object.defineProperty(navigator, 'connection', {
+      configurable: true,
+      get: () => ({ saveData: on, effectiveType: '4g' }),
+    })
+  }, saveData)
+  const metered = await context.newPage()
+  let videoBytes = 0
+  metered.on('response', (res) => {
+    if ((res.headers()['content-type'] ?? '').startsWith('video/')) {
+      videoBytes += Number(res.headers()['content-length'] ?? 0)
+    }
+  })
+  await metered.goto(BASE, { waitUntil: 'domcontentloaded' })
+  await metered.waitForTimeout(6000)
+  const state = await metered.evaluate(() => ({
+    loading: [...document.querySelectorAll('#proof video')].filter((v) => v.currentSrc).length,
+    saysCost: (document.querySelector('#proof')?.textContent ?? '').includes('12 MB'),
+  }))
+
+  if (saveData) {
+    check('a metered link downloads nothing until asked', state.loading === 0 && videoBytes === 0, `${state.loading} players, ${videoBytes} bytes`)
+    check('and it says what pressing the button will cost', state.saysCost)
+    await metered.locator('#proof button', { hasText: 'Play the comparison' }).click()
+    await metered.waitForTimeout(6000)
+    const started = await metered.evaluate(() => [...document.querySelectorAll('#proof video')].filter((v) => v.currentSrc).length)
+    check('pressing it runs the comparison', started === 2, `${started} players`)
+  } else {
+    check('an ordinary link is not held back', state.loading === 2 && videoBytes > 0, `${state.loading} players, ${(videoBytes / 1048576).toFixed(1)} MB`)
+  }
+  await context.close()
+}
+
 check('no uncaught errors', pageErrors.length === 0, pageErrors.slice(0, 2).join(' | '))
 
 await browser.close()

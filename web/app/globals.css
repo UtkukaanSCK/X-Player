@@ -1,0 +1,135 @@
+@import 'tailwindcss';
+
+/*
+ * Scan only our own source.
+ *
+ * Tailwind's automatic detection walks out from the project root, and this
+ * project's node_modules holds a symlink to the folder above - the player is a
+ * sibling checkout, not a published package. That folder contains this one, so
+ * following the link is an infinite descent, and Turbopack says so in exactly
+ * those words before it dies.
+ */
+@source "../app";
+@source "../components";
+
+/*
+ * The page is a monitor surround, not a brochure.
+ *
+ * A grading suite puts neutral grey around the picture on purpose: a surround
+ * with a colour cast drags the eye's white point with it and the picture is
+ * judged wrong. This page exists to be believed about what a video is doing, so
+ * the greys carry no hue and the only warm thing on screen is the footage.
+ *
+ * Amber has one job and it is not decoration: it marks the reading that is
+ * live and changing. Every border, label and heading that used to carry it was
+ * competing with the one thing on the page making the argument.
+ */
+@theme {
+  --color-ground: #0a0b0c;
+  --color-panel: #121316;
+  --color-raised: #191b1e;
+  --color-line: #24262a;
+  --color-line-bright: #333639;
+
+  /*
+   * Two text colours, not three.
+   *
+   * There used to be a third, dimmer tier. On a near-black ground it measured
+   * 2.6:1 against the surface it most often sat on - well under the 4.5:1 that
+   * normal text needs - and it was carrying real prose in 22 places. Raising it
+   * to pass put it within a hair of `muted`, which is the arithmetic saying
+   * plainly that three distinguishable compliant text greys do not fit between
+   * #0a0b0c and white. So the third rank is made with size and weight instead,
+   * and the dim colour keeps only the jobs that are not text.
+   *
+   * Measured against every surface: paper 16.4/15.4/14.3, muted 6.0/5.7/5.2.
+   */
+  --color-paper: #e9eaeb;
+  --color-muted: #8b8e92;
+  /*
+   * Non-text only, and it has one job: the boundary of something you can
+   * operate. 3.5/3.3/3.0 against the three surfaces, which is the 3:1 that
+   * WCAG asks of a control's outline - the hairline greys above are decoration
+   * and sit far below it, which is correct for a rule and wrong for a border
+   * that is the only thing saying "this is a choice you can make".
+   */
+  --color-faint: #64676b;
+
+  /*
+   * Amber has one job and it is not decoration: it marks what is live, active
+   * or chosen. It is not a hover colour - every link turning amber on hover
+   * spent the page's one accent on the cursor's whereabouts.
+   */
+  --color-good: #ffb020;
+  /* 4.54:1 on `raised`, where the old #e5484d fell to 4.41 and missed AA. */
+  --color-bad: #e84a4f;
+
+  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-mono-face), ui-monospace, monospace;
+
+  /*
+   * One scale, in rem.
+   *
+   * There were twelve hand-picked pixel sizes here: 11, 11.5, 12, 12.5, 13,
+   * 13.5, 14, 14.5, 15, 16, 19 and 10. Half a pixel is not a decision anyone can
+   * see, so the differences bought nothing and cost a judgement call at every
+   * element. These six are a 1.125 progression, and they are rem so that a
+   * reader who has raised their browser's default text size gets a page that
+   * listens - px would ignore them.
+   */
+  --text-micro: 0.6875rem; /* 11px - mono labels, counts, hints */
+  --text-caption: 0.78125rem; /* 12.5px - captions and notes */
+  --text-body: 0.875rem; /* 14px - default UI and prose */
+  --text-lead: 0.96875rem; /* 15.5px - option labels, lead paragraphs */
+  --text-title: 1.09375rem; /* 17.5px - the question prompts */
+  --text-figure: 1.21875rem; /* 19.5px - a measured number meant to be read */
+
+  --text-hero: clamp(2rem, 4.4vw, 3.75rem);
+  --text-section: clamp(2rem, 4.6vw, 3.5rem);
+}
+
+html {
+  background: var(--color-ground);
+  color-scheme: dark;
+}
+
+/*
+ * Section headings take Archivo's wide cut.
+ *
+ * This is the one typographic gesture on the page, so it is spent in one place
+ * and nowhere else: legends on equipment are wide and tracked tight, and a
+ * heading set that way reads as a label on a machine rather than as marketing.
+ */
+.legend {
+  font-variation-settings: 'wdth' 112;
+  letter-spacing: -0.028em;
+}
+
+body {
+  background: var(--color-ground);
+  color: var(--color-paper);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* The player fills whatever panel it is given. */
+.stage-player .xp-root {
+  width: 100%;
+  height: 100%;
+  border-radius: 0;
+}
+
+/*
+ * Nothing on this page should move for someone who asked for less motion. The
+ * scroll-linked pieces check the same preference in JavaScript and simply do not
+ * animate; this covers everything else.
+ */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

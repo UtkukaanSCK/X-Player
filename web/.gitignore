@@ -11,3 +11,7 @@ next-env.d.ts
 # Copied from the player build by scripts/sync-player.mjs.
 public/downloads
 lib/generated
+
+# Drawn by scripts/make-icons.mjs, which runs before next build.
+app/icon.png
+app/apple-icon.png
