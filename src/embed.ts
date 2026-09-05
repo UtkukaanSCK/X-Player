@@ -6,22 +6,22 @@ import type { XPlayerProps, XPlayerTrack } from './player/types'
 const roots = new WeakMap<Element, Root>()
 
 export interface PlayerHandle {
-  /** Ayarları değiştirip yeniden çizer. */
+  /** Applies new options and re-renders. */
   update: (options: Partial<XPlayerProps>) => void
-  /** Oynatıcıyı sayfadan kaldırır. */
+  /** Removes the player from the page. */
   destroy: () => void
   element: Element
 }
 
 function resolveElement(target: string | Element): Element {
   const el = typeof target === 'string' ? document.querySelector(target) : target
-  if (!el) throw new Error(`X-Player: "${String(target)}" bulunamadı.`)
+  if (!el) throw new Error(`X-Player: "${String(target)}" not found.`)
   return el
 }
 
 /**
- * Oynatıcıyı bir elemana yerleştirir.
- *   XPlayer.mount('#player', { src: 'video.mp4', title: 'Tanıtım' })
+ * Mounts the player into an element.
+ *   XPlayer.mount('#player', { src: 'video.mp4', title: 'Trailer' })
  */
 export function mount(target: string | Element, options: XPlayerProps): PlayerHandle {
   const el = resolveElement(target)
@@ -52,7 +52,7 @@ function parseTracks(raw: string | undefined): XPlayerTrack[] | undefined {
     const parsed = JSON.parse(raw)
     return Array.isArray(parsed) ? (parsed as XPlayerTrack[]) : undefined
   } catch {
-    console.warn('X-Player: data-tracks geçerli JSON değil, yok sayıldı.')
+    console.warn('X-Player: data-tracks is not valid JSON; ignored.')
     return undefined
   }
 }
@@ -60,7 +60,7 @@ function parseTracks(raw: string | undefined): XPlayerTrack[] | undefined {
 function optionsFromDataset(el: HTMLElement): XPlayerProps | null {
   const src = el.dataset.src
   if (!src) {
-    console.warn('X-Player: data-x-player öğesinde data-src yok.', el)
+    console.warn('X-Player: a [data-x-player] element has no data-src.', el)
     return null
   }
   return {
@@ -79,8 +79,8 @@ function optionsFromDataset(el: HTMLElement): XPlayerProps | null {
 }
 
 /**
- * Sayfadaki tüm `[data-x-player]` öğelerini otomatik kurar.
- * Script yüklendiğinde kendiliğinden bir kez çalışır.
+ * Mounts every `[data-x-player]` element on the page.
+ * Runs once on its own when the script loads.
  */
 export function autoMount(scope: ParentNode = document): PlayerHandle[] {
   const handles: PlayerHandle[] = []

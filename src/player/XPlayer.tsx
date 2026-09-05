@@ -281,7 +281,7 @@ export function XPlayer({
     })
   }, [autoPlay, state.status, dispatch])
 
-  /* ------------------------------------------------------------------ komutlar */
+  /* ------------------------------------------------------------------ commands */
 
   const togglePlay = useCallback(() => {
     const video = videoRef.current
@@ -311,7 +311,7 @@ export function XPlayer({
       const video = videoRef.current
       if (!video) return
       seekTo(video.currentTime + delta)
-      showToast(delta > 0 ? `+${delta} sn` : `${delta} sn`)
+      showToast(delta > 0 ? `+${delta}s` : `${delta}s`)
     },
     [seekTo, showToast],
   )
@@ -339,7 +339,7 @@ export function XPlayer({
       if (!video) return
       const next = Math.min(1, Math.max(0, (video.muted ? 0 : video.volume) + delta))
       setVolume(next)
-      showToast(`Ses %${Math.round(next * 100)}`)
+      showToast(`Volume ${Math.round(next * 100)}%`)
     },
     [setVolume, showToast],
   )
@@ -546,7 +546,7 @@ export function XPlayer({
     }
   }, [dispatch])
 
-  /* ------------------------------------------------------------------ klavye */
+  /* ------------------------------------------------------------------ keyboard */
 
   const commandsRef = useRef<PlayerCommands>({} as PlayerCommands)
   commandsRef.current = {
