@@ -139,6 +139,16 @@
   font-size: 15px;
   font-weight: 600;
   letter-spacing: -0.01em;
+  /*
+   * One line, and never more.
+   *
+   * A release-group filename is easily 150 characters, and with nothing to stop
+   * it the title wrapped to three or four lines behind its gradient and covered
+   * the top of the picture - worst on exactly the files whose names are longest.
+   */
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
   text-shadow: 0 1px 12px rgba(0, 0, 0, 0.6);
   background: linear-gradient(180deg, rgba(0, 0, 0, 0.55), transparent);
   pointer-events: none;

@@ -15,7 +15,13 @@ export function CenterOverlay({ waiting, showBigPlay, ended, error, onPlay, onRe
   if (error) {
     return (
       <div className="xp-center xp-center-blocking">
-        <div className="xp-error">
+        {/*
+          * Announced, not just drawn. Playback stopping is the one moment a
+          * viewer who cannot see the screen most needs telling, and it was the
+          * one moment nothing was said: the message was a bare paragraph, so a
+          * screen reader had no reason to read it out.
+          */}
+        <div className="xp-error" role="alert">
           <WarningIcon />
           <p className="xp-error-text">{error}</p>
           <button type="button" className="xp-error-retry" onClick={onRetry}>
