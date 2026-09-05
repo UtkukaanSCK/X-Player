@@ -36,12 +36,34 @@ export function useNetworkSim() {
   useEffect(() => {
     let cancelled = false
 
-    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
-      setStatus({ kind: 'unavailable', reason: 'This browser has no service worker support.' })
+    /*
+     * Secure context first, because the other test cannot tell you anything.
+     *
+     * navigator.serviceWorker is [SecureContext]: on an insecure origin the
+     * property is simply absent, so asking "does this browser support service
+     * workers" there answers no about a browser that supports them perfectly
+     * well. In that order the insecure case was caught by the first branch and
+     * blamed on the browser, and the branch with the true answer never ran at
+     * all. Measured over plain http from a non-loopback address:
+     * isSecureContext false, serviceWorker in navigator false, and the page
+     * saying the browser was at fault.
+     */
+    if (typeof window !== 'undefined' && !window.isSecureContext) {
+      setStatus({ kind: 'unavailable', reason: 'This page is not on HTTPS, and a service worker needs it.' })
       return
     }
-    if (!window.isSecureContext) {
-      setStatus({ kind: 'unavailable', reason: 'Service workers need HTTPS or localhost.' })
+    /*
+     * On HTTPS the property really is missing, and saying only that the browser
+     * lacks support is true and unhelpful. On a phone it is almost always the
+     * mode rather than the browser - private browsing on iOS, or one of the
+     * in-app browsers a link from a social app opens in - and someone who knows
+     * that can open the page again somewhere it will work.
+     */
+    if (typeof navigator === 'undefined' || !('serviceWorker' in navigator)) {
+      setStatus({
+        kind: 'unavailable',
+        reason: 'Service workers are switched off here. Private browsing and in-app browsers usually do that; the same link in an ordinary tab will run it.',
+      })
       return
     }
 
