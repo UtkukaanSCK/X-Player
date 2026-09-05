@@ -1,4 +1,4 @@
-import { useCallback, useRef, useState, type RefObject } from 'react'
+import { useCallback, useRef, type RefObject } from 'react'
 // The tooltip is read, so it stays a clock face; the ARIA value is heard, so
 // it becomes words - and that one lives in the painter, with the other sinks.
 import { formatTime } from '../format'
@@ -6,7 +6,7 @@ import type { SeekRefs } from '../hooks/useProgressPaint'
 
 export type { SeekRefs }
 
-/** Beyond this the press is a drag, and the tooltip follows without seeking. */
+/** Seek for real no more often than this while a drag is in progress. */
 const SCRUB_INTERVAL_MS = 120
 
 interface Props {
@@ -22,11 +22,17 @@ interface Props {
 }
 
 /**
- * The progress bar. Dragging never touches React state for the position: the
- * bar and the handle are written straight to the DOM, so no frames are dropped.
+ * The progress bar.
+ *
+ * Nothing the pointer does here goes through React. The bar, the handle and the
+ * tooltip are written straight to the DOM, so a drag costs no renders at all -
+ * it used to cost one per pointermove, which is one per frame on any ordinary
+ * mouse, spent entirely on moving a tooltip forty pixels.
  */
 export function SeekBar({ refs, duration, seekingRef, drawRatio, onSeek, onScrub, onActivity }: Props) {
-  const [hover, setHover] = useState<{ x: number; time: number } | null>(null)
+  const tipRef = useRef<HTMLDivElement>(null)
+  /** What the tooltip is currently showing, so it is not told twice. */
+  const tip = useRef({ shown: false, second: -1 })
   const draggingRef = useRef(false)
   const lastScrubRef = useRef(0)
 
@@ -41,6 +47,32 @@ export function SeekBar({ refs, duration, seekingRef, drawRatio, onSeek, onScrub
     [refs.root],
   )
 
+  /** Pass null to take the tooltip away. */
+  const drawTip = useCallback(
+    (ratio: number | null) => {
+      const el = tipRef.current
+      if (!el) return
+      if (ratio === null || duration <= 0) {
+        if (tip.current.shown) {
+          tip.current.shown = false
+          el.hidden = true
+        }
+        return
+      }
+      if (!tip.current.shown) {
+        tip.current.shown = true
+        el.hidden = false
+      }
+      el.style.left = `${ratio * 100}%`
+      const second = Math.floor(ratio * duration)
+      if (second !== tip.current.second) {
+        tip.current.second = second
+        el.textContent = formatTime(second)
+      }
+    },
+    [duration],
+  )
+
   const beginDrag = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       if (!duration) return
@@ -50,18 +82,19 @@ export function SeekBar({ refs, duration, seekingRef, drawRatio, onSeek, onScrub
       seekingRef.current = true
       const ratio = ratioAt(e.clientX)
       drawRatio(ratio, duration)
+      drawTip(ratio)
       onScrub(ratio * duration)
       lastScrubRef.current = performance.now()
       onActivity()
     },
-    [duration, ratioAt, drawRatio, onScrub, seekingRef, onActivity],
+    [duration, ratioAt, drawRatio, drawTip, onScrub, seekingRef, onActivity],
   )
 
   const trackPointer = useCallback(
     (e: React.PointerEvent<HTMLDivElement>) => {
       if (!duration) return
       const ratio = ratioAt(e.clientX)
-      setHover({ x: ratio, time: ratio * duration })
+      drawTip(ratio)
       if (!draggingRef.current) return
 
       drawRatio(ratio, duration)
@@ -75,7 +108,7 @@ export function SeekBar({ refs, duration, seekingRef, drawRatio, onSeek, onScrub
         onScrub(ratio * duration)
       }
     },
-    [duration, ratioAt, drawRatio, onScrub],
+    [duration, ratioAt, drawRatio, drawTip, onScrub],
   )
 
   const endDrag = useCallback(
@@ -110,18 +143,16 @@ export function SeekBar({ refs, duration, seekingRef, drawRatio, onSeek, onScrub
         onPointerMove={trackPointer}
         onPointerUp={endDrag}
         onPointerCancel={endDrag}
-        onPointerLeave={() => !draggingRef.current && setHover(null)}
+        onPointerLeave={() => {
+          if (!draggingRef.current) drawTip(null)
+        }}
       >
         <div className="xp-seek-track">
           <div ref={refs.buffered} className="xp-seek-buffered" />
           <div ref={refs.played} className="xp-seek-played" />
         </div>
         <div ref={refs.handle} className="xp-seek-handle" />
-        {hover && duration > 0 && (
-          <div className="xp-seek-tip" style={{ left: `${hover.x * 100}%` }}>
-            {formatTime(hover.time)}
-          </div>
-        )}
+        <div ref={tipRef} className="xp-seek-tip" hidden />
       </div>
     </div>
   )
