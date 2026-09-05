@@ -39,3 +39,7 @@ node_modules_pw
 # keeping it beside the player is what makes the version it advertises
 # checkable against the version being shipped. Its own .gitignore covers
 # everything scripts/sync-player.mjs copies in.
+
+# Claude Code configuration is per-developer and lives in ~/.claude at user
+# scope. Nothing about how the repository is edited belongs in the repository.
+.claude/

@@ -259,7 +259,7 @@ function Question({
  * one accent cannot spend it on wherever the cursor happens to be.
  */
 const ACTION =
-  'inline-block rounded-md border border-faint px-3.5 py-2 font-mono text-micro text-paper transition-colors hover:bg-raised active:bg-line focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-good'
+  'inline-flex min-h-11 items-center rounded-md border border-faint px-3.5 py-2 font-mono text-micro text-paper transition-colors hover:bg-raised active:bg-line focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-good'
 
 function fileCount(target: Target, playing: Playing) {
   const n = assetsFor(target, playing).length
@@ -333,7 +333,7 @@ function AppResult({ platform }: { platform: PlatformId | null }) {
           href={APP_RELEASES}
           target="_blank"
           rel="noreferrer noopener"
-          className="rounded-xs underline underline-offset-4 hover:text-paper focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-good"
+          className="inline-flex min-h-11 items-center rounded-xs underline underline-offset-4 hover:text-paper focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-good"
         >
           All releases and checksums
           <span className="sr-only"> (opens in a new tab)</span>

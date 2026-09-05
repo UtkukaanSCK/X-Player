@@ -236,6 +236,37 @@ for (const width of [390, 768, 1024, 1440]) {
   check(`no text is cut off at ${width}px`, bad.cut.length === 0, bad.cut.join(', ') || 'clean')
 }
 
+/* ------------------------------------------------------------- touch targets */
+
+/*
+ * WCAG 2.2's 2.5.8, checked at the width where it bites.
+ *
+ * The player's own controls are excluded, not forgiven: they are 36px and they
+ * belong to the library in src/player, which is a different tree with its own
+ * tests. What this asserts is that nothing the site itself puts under a thumb
+ * is too small for one.
+ */
+await page.setViewportSize({ width: 390, height: 844 })
+await page.waitForTimeout(700)
+const small = await page.evaluate(() => {
+  const out = []
+  for (const el of document.querySelectorAll('a,button,[role="radio"],input,select')) {
+    if (el.closest('.xp-root')) continue
+    const r = el.getBoundingClientRect()
+    if (r.width < 1 || r.height < 1) continue
+    if (r.width < 44 || r.height < 44) {
+      out.push({
+        label: (el.getAttribute('aria-label') ?? el.textContent ?? el.tagName).trim().slice(0, 24),
+        w: Math.round(r.width),
+        h: Math.round(r.height),
+      })
+    }
+  }
+  return out
+})
+check('every control the site owns is at least 44px on a phone', small.length === 0, JSON.stringify(small.slice(0, 5)))
+await page.setViewportSize({ width: 1440, height: 900 })
+
 check('no uncaught errors', pageErrors.length === 0, pageErrors.join(' | '))
 
 await browser.close()
