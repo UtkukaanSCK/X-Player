@@ -1,0 +1,18 @@
+{
+  "dist/lib/x-player.es.js": {
+    "raw": 48022,
+    "gzip": 12336
+  },
+  "dist/lib/x-player.cjs.js": {
+    "raw": 36486,
+    "gzip": 10667
+  },
+  "dist/lib/style.css": {
+    "raw": 12813,
+    "gzip": 3165
+  },
+  "dist/embed/x-player.iife.js": {
+    "raw": 68093,
+    "gzip": 21888
+  }
+}
