@@ -29,8 +29,11 @@ node_modules_pw
 
 # Separate projects that live beside this one: an older landing site, and the
 # desktop app, which has its own repository.
-site
-app
+# Anchored with a slash: an unanchored `app` also matches web/app, which is
+# the site's Next.js directory - it was silently left out of the repository
+# and the first Pages build died looking for a file that was never pushed.
+/site
+/app
 
 # The site is not ignored: GitHub Pages builds it from this repository, and
 # keeping it beside the player is what makes the version it advertises
