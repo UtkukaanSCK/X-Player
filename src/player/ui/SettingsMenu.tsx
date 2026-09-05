@@ -100,7 +100,16 @@ export function SettingsMenu({
 
           {panel !== 'main' && (
             <div className="xp-menu-panel">
-              <button type="button" className="xp-menu-back" onClick={() => setPanel('main')}>
+              {/* role="menuitem" does two things: it makes this the first stop
+                  when focus returns to a sub-panel, instead of landing on an
+                  option halfway down the list, and it keeps the ARIA valid -
+                  a role-less button is not a permitted child of role="menu". */}
+              <button
+                type="button"
+                className="xp-menu-back"
+                role="menuitem"
+                onClick={() => setPanel('main')}
+              >
                 <ChevronLeftIcon />
                 <span>{PANEL_TITLE[panel]}</span>
               </button>

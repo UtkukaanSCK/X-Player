@@ -99,6 +99,45 @@ await page.waitForTimeout(300)
 check('speed changes to 1.5x', (await state()).rate === 1.5)
 await page.keyboard.press('Escape')
 
+/* ------------------------------------------ controls vs. keyboard focus */
+
+/*
+ * The order here is the bug: focusing clears the hide timer, and the pointer
+ * move that follows re-arms it. Guarding only the pointerleave handler left
+ * that timer free to hide a focused control 2.5s later, so the pointer never
+ * has to leave the player for this to fail.
+ */
+const SHOWING = '[data-case="ladder"] .xp-root.xp-show'
+const rootBox = await page.locator('[data-case="ladder"] .xp-root').boundingBox()
+const nudge = async () => {
+  await page.mouse.move(rootBox.x + rootBox.width / 2, rootBox.y + rootBox.height / 2)
+  await page.mouse.move(rootBox.x + rootBox.width / 2 + 4, rootBox.y + rootBox.height / 2)
+}
+
+// A paused player keeps its controls up for an unrelated reason, which would
+// make both checks below pass without proving anything. Rewind as well: the
+// clip runs 14s, and the two waits below would otherwise reach the end of it
+// and pause for that reason instead.
+await page.evaluate((sel) => {
+  const v = document.querySelector(sel)
+  v.currentTime = 0
+  return v.play()
+}, V)
+await page.waitForTimeout(500)
+
+// Proves the hide timer is running here at all, so the check after it cannot
+// pass by accident.
+await page.evaluate(() => document.activeElement?.blur())
+await nudge()
+await page.waitForTimeout(3200)
+check('controls fade out with nothing focused', (await page.locator(SHOWING).count()) === 0)
+
+await page.locator('[data-case="ladder"] .xp-settings .xp-btn').focus()
+await nudge()
+await page.waitForTimeout(3200)
+check('controls stay up while a control has focus', (await page.locator(SHOWING).count()) === 1)
+await page.evaluate(() => document.activeElement?.blur())
+
 /* ----------------------------------------------------------- subtitles */
 
 await page.locator('[data-case="ladder"] .xp-root').focus()

@@ -26,11 +26,34 @@ export function useControlsVisibility(
     }
   }
 
+  /*
+   * The container carries tabIndex={0}, so clicking anything inside it that
+   * cannot take focus lands focus on the container itself. Counting that as
+   * "the keyboard is in here" would hold the bar open for the whole of an
+   * ordinary click-to-play, so only a real control inside counts.
+   */
+  const keyboardInside = useCallback(() => {
+    const el = containerRef.current
+    const active = document.activeElement
+    return !!el && !!active && active !== el && el.contains(active)
+  }, [containerRef])
+
+  /*
+   * Every path that hides goes through here, because guarding only the
+   * pointer-leave path missed the one that actually fires: leaving is always
+   * preceded by a pointermove, which re-arms this timer, so a focused control
+   * was hidden 2.5s later anyway.
+   */
+  const hide = useCallback(() => {
+    if (keyboardInside()) return
+    setVisible(false)
+  }, [keyboardInside])
+
   const schedule = useCallback(() => {
     clear()
     if (!playingRef.current || lockedRef.current) return
-    timerRef.current = window.setTimeout(() => setVisible(false), HIDE_AFTER_MS)
-  }, [])
+    timerRef.current = window.setTimeout(hide, HIDE_AFTER_MS)
+  }, [hide])
 
   const show = useCallback(() => {
     setVisible(true)
@@ -52,9 +75,13 @@ export function useControlsVisibility(
 
     const onMove = () => show()
     const onLeave = () => {
+      // Tabbing to a control and then moving the mouse off the window used to
+      // fade the bar to opacity 0 and pointer-events: none with the focus still
+      // sitting on it - invisible, unreachable, and no way back but the mouse.
+      // hide() is what refuses to do that now.
       if (!lockedRef.current && playingRef.current) {
         clear()
-        setVisible(false)
+        hide()
       }
     }
     const onFocusIn = () => {
@@ -76,7 +103,7 @@ export function useControlsVisibility(
       el.removeEventListener('focusin', onFocusIn)
       el.removeEventListener('focusout', onFocusOut)
     }
-  }, [containerRef, show, schedule])
+  }, [containerRef, show, schedule, hide])
 
   return { visible, show }
 }
