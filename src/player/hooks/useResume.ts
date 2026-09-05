@@ -59,7 +59,13 @@ export function useResume(
     if (!video || !enabled) return
     const onMeta = () => {
       const saved = read()
-      if (saved > MIN_SECONDS && video.duration && saved < video.duration * DONE_RATIO) {
+      // Same guard the save path uses: a live stream reports Infinity, which is
+      // truthy, so a position left by an earlier build would still be offered.
+      if (
+        saved > MIN_SECONDS &&
+        Number.isFinite(video.duration) &&
+        saved < video.duration * DONE_RATIO
+      ) {
         setOffer(saved)
       }
     }
@@ -73,16 +79,37 @@ export function useResume(
     if (!enabled) return
     const save = () => {
       const video = videoRef.current
-      if (!video || !video.duration || video.paused) return
+      if (!video || !Number.isFinite(video.duration) || video.duration <= 0) return
       if (video.currentTime >= video.duration * DONE_RATIO) write(0)
       else if (video.currentTime > MIN_SECONDS) write(video.currentTime)
     }
-    const id = window.setInterval(save, 4000)
+    /*
+     * The interval skips a paused video - there is nothing new to record - but
+     * the two saves that matter most happen exactly when it is paused: leaving
+     * the page, and unmounting. Guarding inside save() defeated both, so
+     * pausing, seeking and closing lost the seek and resumed from the last tick
+     * that happened while playing.
+     */
+    const tick = () => {
+      const video = videoRef.current
+      if (video && !video.paused) save()
+    }
+    /*
+     * pagehide covers navigating away, but a phone that backgrounds the tab and
+     * then has it reclaimed by the OS never fires it - and that is exactly where
+     * playback is most likely to be interrupted mid-video.
+     */
+    const onHidden = () => {
+      if (document.visibilityState === 'hidden') save()
+    }
+    const id = window.setInterval(tick, 4000)
     window.addEventListener('pagehide', save)
+    document.addEventListener('visibilitychange', onHidden)
     return () => {
       save()
       window.clearInterval(id)
       window.removeEventListener('pagehide', save)
+      document.removeEventListener('visibilitychange', onHidden)
     }
   }, [videoRef, enabled, write])
 
