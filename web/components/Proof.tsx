@@ -345,7 +345,7 @@ function Controls({
               disabled={pending}
               onClick={() => onPick(m.id)}
               onKeyDown={(event) => onKeyDown(event, index)}
-              className={`flex-1 min-h-11 rounded-md px-3 py-2 font-mono text-caption transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-good disabled:opacity-40 ${
+              className={`flex-1 min-h-12 rounded-md px-3 py-2 font-mono text-caption transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-good disabled:opacity-40 ${
                 on ? 'bg-good/15 text-good' : 'text-muted hover:bg-raised hover:text-paper active:bg-line'
               }`}
             >

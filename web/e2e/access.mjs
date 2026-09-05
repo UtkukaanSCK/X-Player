@@ -247,6 +247,11 @@ for (const width of [390, 768, 1024, 1440]) {
  * is too small for one.
  */
 await page.setViewportSize({ width: 390, height: 844 })
+/* At the top of the page, which is the worst case: the comparison stage rests
+   at scale(0.94) until it is scrolled, so a 44px control is 41px on screen
+   there. Measuring wherever the page happened to be left made this pass. */
+await page.evaluate(() => window.scrollTo(0, 0))
+await page.waitForTimeout(900)
 await page.waitForTimeout(700)
 const small = await page.evaluate(() => {
   const out = []
