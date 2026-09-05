@@ -27,9 +27,13 @@ dist-ssr
 scripts/e2e/out
 node_modules_pw
 
-# Separate projects that consume this library, kept out of this repository.
-site
-app
+# Separate projects that live beside this one: an older landing site, and the
+# desktop app, which has its own repository.
+# Anchored with a slash: an unanchored `app` also matches web/app, the site's
+# Next.js directory - it was silently left out of the repository and the first
+# Pages build died looking for a file that had never been pushed.
+/site
+/app
 
 # The site is here rather than out: GitHub Pages builds it from this repository,
 # and keeping it alongside the player is what makes the version it advertises
