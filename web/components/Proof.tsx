@@ -380,7 +380,7 @@ function Consent({ onStart }: { onStart: () => void }) {
       <button
         type="button"
         onClick={onStart}
-        className="min-h-11 rounded-lg bg-good px-6 py-3 text-body font-semibold text-[#1a1206] transition-colors hover:bg-[#ffc04a] active:bg-[#e59a17] focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-good"
+        className="min-h-12 rounded-lg bg-good px-6 py-3 text-body font-semibold text-[#1a1206] transition-colors hover:bg-[#ffc04a] active:bg-[#e59a17] focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-good"
       >
         Play the comparison
       </button>

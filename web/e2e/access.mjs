@@ -270,6 +270,30 @@ const small = await page.evaluate(() => {
   return out
 })
 check('every control the site owns is at least 44px on a phone', small.length === 0, JSON.stringify(small.slice(0, 5)))
+
+/* The metered path renders a control the fast path never does, so the sweep
+   above had no way to see it. It was 42px. */
+const metered = await browser.newContext({ viewport: { width: 390, height: 844 } })
+await metered.addInitScript(() =>
+  Object.defineProperty(navigator, 'connection', {
+    configurable: true,
+    get: () => ({ saveData: true, effectiveType: '4g' }),
+  }),
+)
+const meteredPage = await metered.newPage()
+await meteredPage.goto(BASE, { waitUntil: 'domcontentloaded' })
+await meteredPage.waitForTimeout(4000)
+const meteredSmall = await meteredPage.evaluate(() =>
+  [...document.querySelectorAll('a,button,[role="radio"]')]
+    .filter((el) => {
+      if (el.closest('.xp-root')) return false
+      const r = el.getBoundingClientRect()
+      return r.width > 0 && (r.width < 44 || r.height < 44)
+    })
+    .map((el) => ({ label: el.textContent.trim().slice(0, 24), h: Math.round(el.getBoundingClientRect().height) })),
+)
+check('the metered path has big enough controls too', meteredSmall.length === 0, JSON.stringify(meteredSmall))
+await metered.close()
 await page.setViewportSize({ width: 1440, height: 900 })
 
 check('no uncaught errors', pageErrors.length === 0, pageErrors.join(' | '))
