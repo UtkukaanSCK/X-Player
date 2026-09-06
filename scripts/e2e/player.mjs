@@ -411,6 +411,38 @@ check(
   panel !== null && panel.over === 0,
   panel && `${panel.over}px outside, ${panel.rows} rows, scrollable ${panel.scrollable}`,
 )
+
+/*
+ * `.xp-center` holds the big play button and the error panel's Try again, and
+ * it sat at z-index 4 under the bar's 5. On a tall player those buttons land
+ * above the bar's box and nothing notices; on a short one they land inside it
+ * and the bar takes the tap. An error also sets `locked`, which pins the
+ * controls visible - so the bar is guaranteed to be up at exactly the moment
+ * the button underneath it is the way out.
+ */
+const fresh = await browser.newPage({ ...devices['iPhone 13'] })
+await fresh.goto(BASE, { waitUntil: 'networkidle' })
+await fresh.waitForTimeout(1500)
+await fresh.locator('#ladder').scrollIntoViewIfNeeded()
+await fresh.waitForTimeout(600)
+const centred = await fresh.evaluate(() => {
+  const host = document.querySelector('[data-case="ladder"]')
+  host.style.width = '250px'
+  host.style.maxWidth = '250px'
+  const root = host.querySelector('.xp-root')
+  root.classList.add('xp-show') // an error pins the bar visible; this is that state
+  const play = root.querySelector('.xp-bigplay')
+  if (!play) return null
+  const b = play.getBoundingClientRect()
+  const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2)
+  return { reaches: play.contains(hit) || hit === play, blocker: hit ? hit.className.toString().split(' ')[0] : 'nothing' }
+})
+check(
+  'the centred overlay is reachable on a narrow player',
+  centred !== null && centred.reaches,
+  centred ? `hit ${centred.blocker}` : 'no big play button rendered - check is not testing anything',
+)
+await fresh.close()
 await phone.close()
 
 await browser.close()

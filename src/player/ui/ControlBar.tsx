@@ -81,9 +81,13 @@ export function ControlBar(props: Props) {
             <PlayGlyph size={24} />
           </button>
 
+          {/* Both go at the first tier: the double-tap gesture on the picture
+              does the same job, and it is the only control here with a
+              replacement rather than a new home. */}
           <button
             type="button"
-            className="xp-btn xp-hide-sm"
+            className="xp-btn"
+            data-xp-until="roomy"
             onClick={() => props.onSeekBy(-10)}
             aria-label="Back 10 seconds"
             data-xp-tip="Back 10s (j)"
@@ -92,7 +96,8 @@ export function ControlBar(props: Props) {
           </button>
           <button
             type="button"
-            className="xp-btn xp-hide-sm"
+            className="xp-btn"
+            data-xp-until="roomy"
             onClick={() => props.onSeekBy(10)}
             aria-label="Forward 10 seconds"
             data-xp-tip="Forward 10s (l)"
@@ -100,17 +105,29 @@ export function ControlBar(props: Props) {
             <SeekFwdIcon />
           </button>
 
-          <VolumeControl
-            volume={state.volume}
-            muted={state.muted}
-            onToggleMute={props.onToggleMute}
-            onChange={props.onVolume}
-          />
+          {/* Last of the left group to go, and only at the narrowest tier: an
+              embed that autoplays muted is a silent video, and with no way to
+              unmute there is no way to recover from that. */}
+          <div data-xp-until="minimal" className="xp-volume-wrap">
+            <VolumeControl
+              volume={state.volume}
+              muted={state.muted}
+              onToggleMute={props.onToggleMute}
+              onChange={props.onVolume}
+            />
+          </div>
 
-          <div className="xp-time" aria-hidden>
+          {/* aria-hidden already: the spoken position comes from the slider's
+              own aria-valuetext, so dropping the label costs assistive
+              technology nothing, and the seek tooltip still carries it. */}
+          <div className="xp-time" data-xp-until="minimal" aria-hidden>
             <span ref={props.timeLabelRef}>0:00</span>
-            <span className="xp-time-sep">/</span>
-            <span className="xp-time-total">{formatTime(state.duration)}</span>
+            <span className="xp-time-sep" data-xp-until="roomy">
+              /
+            </span>
+            <span className="xp-time-total" data-xp-until="roomy">
+              {formatTime(state.duration)}
+            </span>
           </div>
         </div>
 
@@ -119,6 +136,7 @@ export function ControlBar(props: Props) {
             <button
               type="button"
               className={`xp-btn${subtitlesOn ? ' xp-btn-on' : ''}`}
+              data-xp-until="tight"
               onClick={props.onToggleSubtitles}
               aria-label={subtitlesOn ? 'Turn subtitles off' : 'Turn subtitles on'}
               aria-pressed={subtitlesOn}
@@ -128,13 +146,20 @@ export function ControlBar(props: Props) {
             </button>
           )}
 
-          <QualityMenu
-            state={state}
-            sources={props.sources}
-            onLevel={props.onLevel}
-            onSource={props.onSource}
-            onOpenChange={props.onMenuOpenChange}
-          />
+          {/* The widest item on the bar, so it goes before full screen or
+              settings - but it measures 288px of bar against 338px available
+              at 350px wide, so it survives that tier rather than leaving at
+              the first sign of pressure. One click is worth a lot on a bad
+              connection and that is exactly when a small player is in use. */}
+          <div data-xp-until="tight" className="xp-quality-wrap">
+            <QualityMenu
+              state={state}
+              sources={props.sources}
+              onLevel={props.onLevel}
+              onSource={props.onSource}
+              onOpenChange={props.onMenuOpenChange}
+            />
+          </div>
 
           <SettingsMenu
             state={state}
@@ -149,7 +174,8 @@ export function ControlBar(props: Props) {
           {props.pipSupported && (
             <button
               type="button"
-              className={`xp-btn xp-hide-sm${state.pip ? ' xp-btn-on' : ''}`}
+              className={`xp-btn${state.pip ? ' xp-btn-on' : ''}`}
+              data-xp-until="roomy"
               onClick={props.onTogglePip}
               aria-label="Picture in picture"
               data-xp-tip="Picture in picture (i)"

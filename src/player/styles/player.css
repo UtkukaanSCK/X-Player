@@ -181,13 +181,52 @@
 .xp-center {
   position: absolute;
   inset: 0;
-  z-index: 4;
+  /*
+   * Above the bar, and above the notifications too.
+   *
+   * This layer holds the big play button and the error panel's Try again, and
+   * it sat under the control bar. On a tall player its buttons land above the
+   * bar's box and nothing notices; on a short one they land inside it and the
+   * bar takes the tap. Worse for the error panel than for play: an error sets
+   * `locked`, which pins the controls visible, so the bar is guaranteed to be
+   * up at exactly the moment the button beneath it is the way out. A player
+   * that fails on a phone could not be retried.
+   *
+   * Safe to raise because this element passes pointer events through - only
+   * the blocking panel below takes them, so the rest of the bar is unaffected.
+   */
+  z-index: 7;
   display: grid;
   place-items: center;
   pointer-events: none;
 }
 .xp-center-blocking {
   pointer-events: auto;
+}
+/*
+ * The blocking layer stops above the bar - always, not only while the bar is
+ * showing.
+ *
+ * Raising this layer over the bar is what makes its buttons reachable, but
+ * `inset: 0` plus `pointer-events: auto` then covers the bar as well and takes
+ * every event meant for it. Ending the layer at the bar height does both jobs:
+ * the picture is still blocked, the bar is still usable, and the centred
+ * content centres in the space above the bar rather than partly beneath it, so
+ * the overlap this was fixing stops happening at all.
+ *
+ * Unconditional because the bar being hidden is exactly when this matters
+ * most: that strip is how a viewer brings the bar back, and blocking it left
+ * a paused player with no way to reveal its own controls.
+ */
+.xp-center-blocking {
+  /*
+   * Clear of the whole interactive strip, not just the button row. The seek
+   * bar sits above `.xp-bar` inside `.xp-controls`, so stopping at
+   * --xp-bar-h still covered it - and a paused video is exactly when someone
+   * wants to scrub. The 30px is that seek row plus the controls' bottom
+   * padding; --xp-bar-h already shrinks per tier, so this follows it down.
+   */
+  bottom: calc(var(--xp-bar-h) + 30px);
 }
 
 .xp-bigplay {
@@ -661,12 +700,23 @@
 
 /* A button that carries a word rather than a glyph. The base button is a grid,
    which would stack the label and the badge; these belong on one line. */
-.xp-btn-text {
+/*
+ * Selector carries .xp-root deliberately.
+ *
+ * The defence layer above is `.xp-root button`, which is 0-1-1, and a bare
+ * `.xp-btn-text` is 0-1-0 - so !important on both sides does not save it, and
+ * this button had been losing its padding and its min-width to our own reset
+ * since that layer was written. Measured at 31px wide with 0px padding while
+ * the stylesheet asked for 46 and 10. The defence block's comment says our own
+ * rules can win because they use !important; that only holds if they are also
+ * specific enough, which class-only selectors are not.
+ */
+.xp-root .xp-btn-text {
   display: inline-flex !important;
   align-items: center;
   justify-content: center;
   width: auto !important;
-  min-width: 46px;
+  min-width: 46px !important;
   padding: 0 10px !important;
   gap: 5px;
   font-family: inherit;
@@ -824,17 +874,49 @@
 
 /* ------------------------------------------------------------ responsive */
 
-@media (max-width: 560px) {
+/*
+ * A tier wrapper is not a box. Volume and quality are components, so the
+ * attribute goes on a wrapper rather than inside them - and `display: contents`
+ * keeps that wrapper out of the flex layout entirely, so the bar lays out as
+ * though the control were still its own direct child. A tier's `display: none`
+ * beats it, which is the whole point.
+ */
+.xp-volume-wrap,
+.xp-quality-wrap {
+  display: contents;
+}
+
+/*
+ * Four tiers, measured against the player's own box.
+ *
+ * Each control declares the tier it survives to with `data-xp-until`, so
+ * ControlBar.tsx states a control's priority next to the control instead of
+ * encoding the whole ordering in one shared class. Adding a control now forces
+ * someone to answer "when does this go?".
+ *
+ * The floor is arithmetic rather than taste. A touch target is 44px whatever
+ * else is true, so a 157px bar holds three of them and their gaps, and no
+ * amount of tightening makes it hold four. What that buys is the right to say
+ * which three: play, because on touch nothing else pauses; settings, because
+ * it is where everything the bar drops has gone; and full screen, because at
+ * 160px the useful thing to offer is a way to stop being at 160px.
+ *
+ * Everything the bar drops is reachable somewhere else - a settings row, or
+ * the double-tap gesture. A hidden control with nowhere to go is not a tier,
+ * it is a regression.
+ */
+
+@container xp (max-width: 560px) {
   .xp-root {
     --xp-bar-h: 46px;
     border-radius: 10px;
   }
-  .xp-hide-sm {
-    display: none;
+  /* The gradient run-up is drawn for a player several times taller. */
+  .xp-controls {
+    padding: 24px 8px 8px;
   }
-  .xp-btn {
-    width: 38px;
-    height: 38px;
+  [data-xp-until='roomy'] {
+    display: none;
   }
   .xp-btn[data-xp-tip]::after {
     display: none;
@@ -847,6 +929,63 @@
   }
   .xp-menu {
     min-width: 200px;
+  }
+}
+
+@container xp (max-width: 400px) {
+  .xp-controls {
+    padding: 18px 6px 6px;
+  }
+  [data-xp-until='compact'] {
+    display: none;
+  }
+}
+
+@container xp (max-width: 300px) {
+  .xp-controls {
+    padding: 14px 6px 6px;
+  }
+  [data-xp-until='tight'] {
+    display: none;
+  }
+}
+
+@container xp (max-width: 220px) {
+  .xp-root {
+    --xp-bar-h: 44px;
+  }
+  .xp-controls {
+    padding: 10px 4px 4px;
+  }
+  [data-xp-until='minimal'] {
+    display: none;
+  }
+}
+
+/*
+ * Targets grow on touch, they do not shrink.
+ *
+ * The old rule took every button to 38px on a small screen - smaller than the
+ * 40px default, and smaller than the 44px the play button had asked for, which
+ * it lost to source order. So the one device class that cannot aim precisely
+ * got the smallest targets on offer. 44px is the Apple HIG and WCAG 2.5.5
+ * figure; the AA requirement is 24, so this is a bar being chosen rather than
+ * a line being crossed, and the tiers above are what pay for it.
+ *
+ * `flex: none` because the bar would otherwise shrink these below their own
+ * declared size when it runs out of room - measured at 31px on a phone, well
+ * under what the stylesheet claimed.
+ */
+@media (pointer: coarse) {
+  .xp-root .xp-btn,
+  .xp-root .xp-btn-play {
+    width: 44px;
+    height: 44px;
+    flex: none;
+  }
+  /* The control that matters most had the smallest hit area on the bar. */
+  .xp-root .xp-seek {
+    height: 32px;
   }
 }
 
