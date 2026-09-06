@@ -2,6 +2,21 @@
 
 ## Unreleased
 
+- The player does far less while it plays. The seek bar was rewriting
+  `aria-valuenow` and `aria-valuetext` sixty times a second for a value that
+  changes once, telling assistive technology the slider had moved when it had
+  not; it now writes when the second changes. Dragging the bar cost one React
+  render per pointer move and now costs none. The stall guard no longer wakes
+  four times a second on a player nobody has pressed play on, and moving the
+  pointer over the video no longer rebuilds the hide timer on every frame.
+- The seek bar told screen readers two different times for the same instant:
+  the number rounded while the words and the visible clock floored, so at 0.84s
+  it read "1" and said "0 seconds". All three now agree.
+- Internals only: XPlayer is 321 lines rather than 730, with media events,
+  commands, subtitles, gestures and painting each in a hook of their own. The
+  public API is unchanged. The library is about 700 bytes of gzip larger for
+  it - module boundaries are not free, and the decomposition is worth saying
+  out loud rather than only its benefits.
 - Quality has its own button on the control bar, showing the resolution actually
   playing, one click from the list. It covers HLS renditions and, through the new
   `sources` prop, several files of the same video. Subtitles and the chosen
