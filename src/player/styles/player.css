@@ -20,6 +20,21 @@
   width: 100%;
   aspect-ratio: 16 / 9;
   overflow: hidden;
+
+  /*
+   * The player sizes itself against its own box, not the window.
+   *
+   * Everything responsive here used to be a viewport media query, which is
+   * only ever right by luck: this is a library, and the element that decides
+   * how much room the controls have is this one, not the screen. A 160px
+   * player on a phone got the small-screen rules; the same 160px player
+   * embedded in a wide desktop page got the full-size ones, in a box a
+   * quarter of the width they were drawn for.
+   *
+   * `size` rather than `inline-size` because the menu needs the height too,
+   * and this element has a definite one: width plus aspect-ratio.
+   */
+  container: xp / size;
   background: #08090c;
   border-radius: var(--xp-radius);
   color: var(--xp-fg);
@@ -354,6 +369,20 @@
 .xp-root.xp-show .xp-controls {
   opacity: 1;
   transform: none;
+  /*
+   * The box, not its contents. Forty of these pixels are transparent padding
+   * above the seek row - a fifth of a phone-sized player - and they look like
+   * video because they are. Taking pointer events across the whole gradient
+   * meant a double tap to seek in the lower half hit this element instead of
+   * the surface, and the gesture that replaces the -10/+10 buttons on a narrow
+   * player was the one it broke.
+   *
+   * Both declarations are needed and both need this selector's specificity:
+   * a plain `.xp-controls { pointer-events: none }` loses to the rule above it.
+   */
+  pointer-events: none;
+}
+.xp-root.xp-show .xp-controls > * {
   pointer-events: auto;
 }
 
@@ -675,8 +704,15 @@
   right: 0;
   bottom: calc(100% + 12px);
   min-width: 268px;
-  max-width: min(340px, 90vw);
-  max-height: 280px;
+  /*
+   * Both caps measure the player, not the window. A menu sized against 90vw
+   * inside a 160px player is a menu wider than the thing it belongs to, and a
+   * 280px panel above a 46px bar needs a player 340px tall to sit in - taller
+   * than a phone-width one ever is, so its first rows went behind the root's
+   * overflow: hidden and could not be reached at all. It scrolls now instead.
+   */
+  max-width: min(340px, 100cqw - 16px);
+  max-height: min(280px, 100cqh - var(--xp-bar-h) - 40px);
   overflow-y: auto;
   padding: 6px;
   border: 1px solid var(--xp-hairline);

@@ -338,6 +338,79 @@ check(
   !(await phone.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)),
 )
 check('controls are reachable on a phone', (await phone.locator('.xp-controls').count()) > 0)
+
+/*
+ * `.xp-controls` is the full-width gradient at the bottom, and 40px of its top
+ * is transparent padding that looks exactly like video. While the bar is up it
+ * took pointer events across that whole box - a fifth of a phone-sized player -
+ * so a double tap to seek in the lower half hit the gradient and never reached
+ * the surface. The band over the bar itself is a different matter: taps there
+ * are meant to be caught, because that is where the controls actually are.
+ */
+await phone.locator('#ladder').scrollIntoViewIfNeeded()
+await phone.waitForTimeout(600)
+const surfaceRoot = phone.locator('[data-case="ladder"] .xp-root')
+const sb = await surfaceRoot.boundingBox()
+await phone.touchscreen.tap(sb.x + sb.width / 2, sb.y + sb.height / 2)
+await phone.waitForTimeout(400)
+const atDepth = await phone.evaluate(() => {
+  const root = document.querySelector('[data-case="ladder"] .xp-root')
+  const r = root.getBoundingClientRect()
+  const at = (frac) => {
+    const el = document.elementFromPoint(r.left + r.width / 2, r.top + r.height * frac)
+    return el ? el.className.toString().split(' ')[0] : null
+  }
+  return { shown: root.classList.contains('xp-show'), at45: at(0.45), at55: at(0.55), at80: at(0.8) }
+})
+check(
+  'a tap over the picture reaches the surface while the bar is up',
+  atDepth.shown && atDepth.at45 !== 'xp-controls' && atDepth.at55 !== 'xp-controls',
+  JSON.stringify(atDepth),
+)
+
+/*
+ * The menu is anchored above a bar at the bottom of a player that is
+ * overflow: hidden, and its height was capped at a constant taller than a
+ * phone-sized player. The speed panel ran off the top edge with its first
+ * rows unreachable - worst exactly where the bar is hardest to use, and
+ * fatal to any plan that folds controls into this menu to save width.
+ *
+ * Checked on the deepest panel rather than the main one: the main panel is
+ * three rows and fits, so a check that only opened the menu would pass while
+ * the panel a viewer actually needs stayed cut off.
+ */
+await phone.locator('#ladder').scrollIntoViewIfNeeded()
+await phone.waitForTimeout(600)
+const phoneRoot = phone.locator('[data-case="ladder"] .xp-root')
+const pb = await phoneRoot.boundingBox()
+await phone.touchscreen.tap(pb.x + pb.width / 2, pb.y + pb.height / 2)
+await phone.waitForTimeout(400)
+await phone.locator('[data-case="ladder"] .xp-settings .xp-btn').tap()
+await phone.waitForTimeout(300)
+await phone.locator('[data-case="ladder"] .xp-menu-item', { hasText: 'Playback speed' }).tap()
+await phone.waitForTimeout(400)
+const panel = await phone.evaluate(() => {
+  const root = document.querySelector('[data-case="ladder"] .xp-root')
+  const menu = root.querySelector('.xp-menu')
+  if (!menu) return null
+  const r = root.getBoundingClientRect()
+  const m = menu.getBoundingClientRect()
+  return {
+    over: Math.round(Math.max(0, r.top - m.top) + Math.max(0, m.bottom - r.bottom)),
+    scrollable: menu.scrollHeight > menu.clientHeight + 1,
+    rows: menu.querySelectorAll('button').length,
+  }
+})
+/*
+ * The menu box has to fit; its rows do not. A panel taller than the space it
+ * has is allowed to scroll inside itself, and a row you reach by scrolling is
+ * reached. A row outside the box is behind overflow: hidden and gone.
+ */
+check(
+  'the settings menu fits inside the player on a phone',
+  panel !== null && panel.over === 0,
+  panel && `${panel.over}px outside, ${panel.rows} rows, scrollable ${panel.scrollable}`,
+)
 await phone.close()
 
 await browser.close()
