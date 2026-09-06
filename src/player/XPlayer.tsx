@@ -4,7 +4,8 @@ import type { XPlayerApi, XPlayerAudioTrack, XPlayerProps, XPlayerSource, XPlaye
 import { usePlayerState } from './hooks/usePlayerState'
 import { useProgressPaint, type SeekRefs } from './hooks/useProgressPaint'
 import { useMediaEvents } from './hooks/useMediaEvents'
-import { useVideoEngine } from './hooks/useVideoEngine'
+import { useVideoEngine, isHlsSource } from './hooks/useVideoEngine'
+import { useFramePreview } from './hooks/useFramePreview'
 import { useStallGuard } from './hooks/useStallGuard'
 import { useResume } from './hooks/useResume'
 import { useSubtitles } from './hooks/useSubtitles'
@@ -131,6 +132,8 @@ export function XPlayer({
     dispatch,
     showToast,
   })
+
+  const preview = useFramePreview({ src: activeSrc, isStream: isHlsSource(activeSrc, activeType) })
 
   const pipSupported =
     typeof document !== 'undefined' && 'pictureInPictureEnabled' in document && document.pictureInPictureEnabled
@@ -299,6 +302,7 @@ export function XPlayer({
         timeLabelRef={timeLabelRef}
         seekingRef={seekingRef}
         drawRatio={drawRatio}
+        preview={preview}
         pipSupported={pipSupported}
         onTogglePlay={commands.togglePlay}
         onSeek={commands.seekTo}

@@ -2,6 +2,22 @@
 
 ## Unreleased
 
+- Hovering the seek bar shows the frame at that point in the video. Nothing to
+  generate and nothing to configure: the frame is drawn from a second, hidden
+  copy of the file, so it works on anything the player can already play. It is
+  bounded rather than clever - the hidden element is not created until someone
+  hovers the bar, only one seek is ever in flight and the newest position wins,
+  and frames are asked for by the second. Streams opt out, because a second
+  hls.js pipeline costs more than the picture is worth, and so does a viewer
+  whose browser has asked to save data. Both still show the time.
+- Fixed: pressing the big play button killed every keyboard shortcut. The
+  button removes itself when playback starts and focus went with it to the
+  page body, so the arrow keys, the space bar, mute and full screen all
+  stopped working - which is why the 5-second skip seemed unreliable rather
+  than broken. Clicking the picture to start the video left focus in the right
+  place, so it depended on how you had started watching.
+- Fixed: clicking the picture to play left the controls on screen for good.
+
 - The player does far less while it plays. The seek bar was rewriting
   `aria-valuenow` and `aria-valuetext` sixty times a second for a value that
   changes once, telling assistive technology the slider had moved when it had

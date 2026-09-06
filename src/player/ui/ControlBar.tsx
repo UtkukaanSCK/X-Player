@@ -2,6 +2,7 @@ import type { RefObject } from 'react'
 import type { PlayerState, XPlayerAudioTrack, XPlayerSource } from '../types'
 import { formatTime } from '../format'
 import { SeekBar, type SeekRefs } from './SeekBar'
+import type { FramePreview } from '../hooks/useFramePreview'
 import { SettingsMenu } from './SettingsMenu'
 import { QualityMenu } from './QualityMenu'
 import { VolumeControl } from './VolumeControl'
@@ -28,6 +29,8 @@ interface Props {
   seekingRef: RefObject<boolean>
   /** Draws a dragged-to position, through the same painter the play loop uses. */
   drawRatio: (ratio: number, duration: number) => void
+  /** The frame under the pointer on the seek bar. */
+  preview: FramePreview
   pipSupported: boolean
   onTogglePlay: () => void
   onSeek: (seconds: number) => void
@@ -60,6 +63,7 @@ export function ControlBar(props: Props) {
         duration={state.duration}
         seekingRef={props.seekingRef}
         drawRatio={props.drawRatio}
+        preview={props.preview}
         onSeek={props.onSeek}
         onScrub={props.onScrub}
         onActivity={props.onActivity}

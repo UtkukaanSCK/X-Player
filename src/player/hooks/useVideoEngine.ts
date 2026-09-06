@@ -4,7 +4,7 @@ import type { ErrorData, Level } from 'hls.js'
 import { loadHls } from '../load-hls'
 import type { PlayerAction, QualityLevel, SourceKind } from '../types'
 
-function isHlsSource(src: string, type: SourceKind) {
+export function isHlsSource(src: string, type: SourceKind) {
   if (type === 'hls') return true
   if (type === 'native') return false
   return /\.m3u8(\?|#|$)/i.test(src)

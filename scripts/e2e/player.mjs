@@ -123,6 +123,49 @@ await page.waitForTimeout(700)
 const scrubbed = await state()
 check('dragging seeks to roughly 60%', scrubbed.t / scrubbed.dur > 0.45 && scrubbed.t / scrubbed.dur < 0.75, `${scrubbed.t}/${scrubbed.dur}`)
 
+/* ------------------------------------------------------- frame preview */
+
+/*
+ * The frame is drawn from a second, hidden copy of the video, so the check
+ * that matters is not that a canvas exists but that what is on it is the
+ * video at that moment. Compared against the real element seeked to the same
+ * time: a blank canvas, a stale frame or the wrong second all fail it. The lit
+ * check is not redundant - without it, a canvas that was never drawn and a
+ * scene that happens to be black would agree perfectly.
+ */
+await page.mouse.move(bar.x + bar.width * 0.75, bar.y + bar.height / 2)
+await page.waitForTimeout(1200)
+const preview = await page.evaluate(async (sel) => {
+  const canvas = document.querySelector(`${sel} .xp-seek-frame`)
+  if (!canvas || canvas.hidden || !canvas.width) return null
+  const video = document.querySelector(`${sel} video.xp-video`)
+  const scratch = document.createElement("canvas")
+  scratch.width = canvas.width
+  scratch.height = canvas.height
+  await new Promise((done) => {
+    video.addEventListener("seeked", done, { once: true })
+    video.currentTime = video.duration * 0.75
+  })
+  await new Promise((done) => setTimeout(done, 300))
+  scratch.getContext("2d").drawImage(video, 0, 0, canvas.width, canvas.height)
+  const want = scratch.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data
+  const got = canvas.getContext("2d").getImageData(0, 0, canvas.width, canvas.height).data
+  let diff = 0
+  let lit = 0
+  for (let p = 0; p < want.length; p += 4) {
+    diff += (Math.abs(want[p] - got[p]) + Math.abs(want[p + 1] - got[p + 1]) + Math.abs(want[p + 2] - got[p + 2])) / 3
+    if (got[p] + got[p + 1] + got[p + 2] > 30) lit += 1
+  }
+  return { diff: diff / (want.length / 4), litPct: (lit / (want.length / 4)) * 100 }
+}, "[data-case=\"ladder\"]")
+
+check('hovering the bar draws the frame under the pointer', preview !== null && preview.litPct > 5, JSON.stringify(preview))
+check(
+  'the drawn frame is the video at that time',
+  preview !== null && preview.diff < 60,
+  preview && `mean channel difference ${preview.diff.toFixed(1)}`,
+)
+
 /* ---------------------------------------------------------------- menu */
 
 await page.locator('[data-case="ladder"] .xp-root').hover()
@@ -248,6 +291,27 @@ await page.waitForTimeout(400)
 const levels = await page.locator(`${HLS} .xp-quality .xp-menu-option`).allTextContents()
 check('stream renditions are listed', levels.length > 2, levels.join(', '))
 check('automatic is offered first', levels[0].startsWith('Auto'), levels[0])
+
+/*
+ * A stream opts out of frame previews. Drawing them would mean a second
+ * hls.js and a second buffer for a thumbnail, which costs more than the
+ * feature is worth. The time must still be there: opting out of the picture
+ * is not opting out of the tooltip.
+ */
+await page.keyboard.press('Escape')
+const hlsBar = await page.locator(`${HLS} .xp-seek`).boundingBox()
+await page.mouse.move(hlsBar.x + hlsBar.width * 0.5, hlsBar.y + hlsBar.height / 2)
+await page.waitForTimeout(1000)
+const streamTip = await page.evaluate((sel) => {
+  const root = document.querySelector(sel)
+  const tip = root.querySelector('.xp-seek-tip')
+  return {
+    frame: !!root.querySelector('.xp-seek-frame'),
+    time: tip && getComputedStyle(tip).display !== 'none' ? tip.textContent.trim() : null,
+  }
+}, HLS)
+check('a stream draws no frame preview', streamTip.frame === false, JSON.stringify(streamTip))
+check('a stream still shows the time under the pointer', /^[0-9]+:[0-9][0-9]/.test(streamTip.time ?? ''), streamTip.time)
 
 /* ------------------------------------------------------- single source */
 

@@ -3,6 +3,7 @@ import { useCallback, useRef, type RefObject } from 'react'
 // it becomes words - and that one lives in the painter, with the other sinks.
 import { formatTime } from '../format'
 import type { SeekRefs } from '../hooks/useProgressPaint'
+import type { FramePreview } from '../hooks/useFramePreview'
 
 export type { SeekRefs }
 
@@ -16,6 +17,8 @@ interface Props {
   seekingRef: RefObject<boolean>
   /** Draws a dragged-to position. The same painter the play loop uses. */
   drawRatio: (ratio: number, duration: number) => void
+  /** The frame under the pointer. */
+  preview: FramePreview
   onSeek: (seconds: number) => void
   onScrub: (seconds: number) => void
   onActivity: () => void
@@ -29,8 +32,18 @@ interface Props {
  * it used to cost one per pointermove, which is one per frame on any ordinary
  * mouse, spent entirely on moving a tooltip forty pixels.
  */
-export function SeekBar({ refs, duration, seekingRef, drawRatio, onSeek, onScrub, onActivity }: Props) {
+export function SeekBar({
+  refs,
+  duration,
+  seekingRef,
+  drawRatio,
+  preview,
+  onSeek,
+  onScrub,
+  onActivity,
+}: Props) {
   const tipRef = useRef<HTMLDivElement>(null)
+  const tipTimeRef = useRef<HTMLSpanElement>(null)
   /** What the tooltip is currently showing, so it is not told twice. */
   const tip = useRef({ shown: false, second: -1 })
   const draggingRef = useRef(false)
@@ -55,7 +68,9 @@ export function SeekBar({ refs, duration, seekingRef, drawRatio, onSeek, onScrub
       if (ratio === null || duration <= 0) {
         if (tip.current.shown) {
           tip.current.shown = false
+          tip.current.second = -1
           el.hidden = true
+          preview.release()
         }
         return
       }
@@ -64,13 +79,17 @@ export function SeekBar({ refs, duration, seekingRef, drawRatio, onSeek, onScrub
         el.hidden = false
       }
       el.style.left = `${ratio * 100}%`
-      const second = Math.floor(ratio * duration)
+      const seconds = ratio * duration
+      const second = Math.floor(seconds)
       if (second !== tip.current.second) {
         tip.current.second = second
-        el.textContent = formatTime(second)
+        const time = tipTimeRef.current
+        if (time) time.textContent = formatTime(second)
+        // Asked for by the second, so sweeping within one costs nothing.
+        preview.request(seconds)
       }
     },
-    [duration],
+    [duration, preview],
   )
 
   const beginDrag = useCallback(
@@ -152,7 +171,10 @@ export function SeekBar({ refs, duration, seekingRef, drawRatio, onSeek, onScrub
           <div ref={refs.played} className="xp-seek-played" />
         </div>
         <div ref={refs.handle} className="xp-seek-handle" />
-        <div ref={tipRef} className="xp-seek-tip" hidden />
+        <div ref={tipRef} className="xp-seek-tip" hidden>
+          {preview.enabled && <canvas ref={preview.canvasRef} className="xp-seek-frame" hidden />}
+          <span ref={tipTimeRef} className="xp-seek-tip-time" />
+        </div>
       </div>
     </div>
   )

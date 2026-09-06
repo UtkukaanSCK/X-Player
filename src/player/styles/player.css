@@ -507,7 +507,11 @@
 .xp-seek-tip {
   position: absolute;
   bottom: 22px;
-  padding: 4px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
   border-radius: 6px;
   border: 1px solid var(--xp-hairline);
   background: rgba(10, 11, 15, 0.94);
@@ -516,6 +520,28 @@
   transform: translateX(-50%);
   pointer-events: none;
   white-space: nowrap;
+}
+
+/*
+ * Both of these are toggled with the hidden attribute, and both set display,
+ * which would otherwise win against it and leave them on screen for good.
+ */
+.xp-seek-tip[hidden],
+.xp-seek-frame[hidden] {
+  display: none;
+}
+
+/* The frame under the pointer. Sized by the canvas, shaped by the video. */
+.xp-seek-frame {
+  display: block;
+  width: 160px;
+  height: auto;
+  border-radius: 3px;
+  background: #000;
+}
+
+.xp-seek-tip-time {
+  padding: 0 4px;
 }
 
 /* ---------------------------------------------------------------- volume */
