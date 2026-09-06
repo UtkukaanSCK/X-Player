@@ -2,6 +2,14 @@ import { useCallback, useEffect, useRef, useState, type RefObject } from 'react'
 
 /** Quiet for this long and the controls go away. */
 const HIDE_AFTER_MS = 2500
+/*
+ * Longer for a finger, because a finger has no way to ask for more time. A
+ * mouse renews the bar just by moving over the player, continuously and
+ * without meaning to; touch has no hover, so the only way to keep the
+ * controls is to tap again, and a tap is what the viewer is trying to spend
+ * on a button. This number is a judgement, not a measurement.
+ */
+const HIDE_AFTER_TOUCH_MS = 4000
 /** Close enough to the deadline that waiting again is not worth a timer. */
 const SLACK_MS = 15
 
@@ -31,6 +39,7 @@ export function useControlsVisibility(
    */
   const dueAt = useRef(0)
   const timer = useRef<number | null>(null)
+  const touch = useRef(false)
 
   const stop = () => {
     if (timer.current !== null) {
@@ -49,7 +58,21 @@ export function useControlsVisibility(
   const focusInside = useCallback(() => {
     const el = containerRef.current
     const active = document.activeElement
-    return !!el && !!active && active !== el && el.contains(active)
+    if (!el || !active || active === el || !el.contains(active)) return false
+    /*
+     * And it has to be focus someone is navigating with. Tapping a button
+     * focuses it too, and on touch that focus never goes anywhere - so
+     * holding the bar open for it held it open for good: tap mute on a phone
+     * and the controls covered the video until you tapped elsewhere.
+     * :focus-visible is the browser answering which kind of focus this is,
+     * which is the same question and better answered there than here.
+     */
+    try {
+      return active.matches(':focus-visible')
+    } catch {
+      // No support: keep the old answer, which errs towards staying open.
+      return true
+    }
   }, [containerRef])
 
   /*
@@ -86,8 +109,9 @@ export function useControlsVisibility(
       stop()
       return
     }
-    dueAt.current = performance.now() + HIDE_AFTER_MS
-    if (timer.current === null) timer.current = window.setTimeout(wake, HIDE_AFTER_MS)
+    const wait = touch.current ? HIDE_AFTER_TOUCH_MS : HIDE_AFTER_MS
+    dueAt.current = performance.now() + wait
+    if (timer.current === null) timer.current = window.setTimeout(wake, wait)
   }, [wake])
 
   const show = useCallback(() => {
@@ -108,8 +132,19 @@ export function useControlsVisibility(
     const el = containerRef.current
     if (!el) return
 
-    const onMove = () => show()
-    const onLeave = () => {
+    const onMove = (e: PointerEvent) => {
+      touch.current = e.pointerType === 'touch'
+      show()
+    }
+    /*
+     * Lifting a finger fires pointerleave, because the pointer stops
+     * existing - not because the viewer looked away. Hiding on it made the
+     * bar appear on a tap and vanish two milliseconds later, which is what
+     * "touching the player makes it close by itself" turned out to be. A
+     * mouse or a pen leaving still means what it always meant.
+     */
+    const onLeave = (e: PointerEvent) => {
+      if (e.pointerType === 'touch') return
       if (!now.current.locked && now.current.playing) hideNow()
     }
     const onFocusIn = () => {
