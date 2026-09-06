@@ -404,12 +404,29 @@ for (let width = 600; width >= 150; width -= 10) {
       const rows = [...panel.querySelectorAll('[role="menuitem"]')].filter(
         (el) => el.getBoundingClientRect().height > 0,
       )
+      /*
+       * Scroll to the bottom before asking whether the last row can be hit.
+       * A row reached by scrolling is reached; what this looks for is a row
+       * that no scrolling brings back, because the panel hangs outside a
+       * root that is overflow: hidden. Asking without scrolling first fails
+       * every player short enough to need it, which is a statement about the
+       * check rather than the player.
+       */
+      const scroller =
+        panel.scrollHeight > panel.clientHeight ? panel : panel.querySelector('.xp-menu-panel')
+      if (scroller && scroller.scrollHeight > scroller.clientHeight) {
+        scroller.scrollTop = scroller.scrollHeight
+      }
       const last = rows[rows.length - 1]
       const lb = last && last.getBoundingClientRect()
       const hit = lb && document.elementFromPoint(lb.left + lb.width / 2, lb.top + lb.height / 2)
       return {
         rows: rows.map((el) => el.textContent.trim()),
-        fits: pb.left >= box.left - 1 && pb.right <= box.right + 1,
+        fits:
+          pb.left >= box.left - 1 &&
+          pb.right <= box.right + 1 &&
+          pb.top >= box.top - 1 &&
+          pb.bottom <= box.bottom + 1,
         lastReachable: !!(last && hit && (hit === last || last.contains(hit))),
       }
     }, LADDER)
