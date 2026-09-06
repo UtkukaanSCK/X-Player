@@ -268,7 +268,17 @@ check('the button follows the switch', (await qualityBtn.textContent())?.include
 // Subtitles belong to the video, not the rendition, so they must survive it.
 await page.locator('[data-case="ladder"] .xp-settings .xp-btn').click()
 await page.waitForTimeout(300)
-const settingsRows = await page.locator('[data-case="ladder"] .xp-settings .xp-menu-item').allTextContents()
+/*
+ * Visible rows only. Quality now has a row here for narrow players, hidden by
+ * a container query on a wide one - and allTextContents() reads hidden text
+ * happily, so a presence check would report a duplicate that no viewer of this
+ * player can see.
+ */
+const settingsRows = await page.evaluate(() =>
+  [...document.querySelectorAll('[data-case="ladder"] .xp-settings .xp-menu-item')]
+    .filter((el) => el.getBoundingClientRect().width > 0)
+    .map((el) => el.textContent.trim()),
+)
 check('subtitles survive a quality switch', settingsRows.some((r) => r.startsWith('Subtitles')), settingsRows.join(' | '))
 check('quality is not duplicated in settings', !settingsRows.some((r) => r.startsWith('Quality')), settingsRows.join(' | '))
 await page.keyboard.press('Escape')
@@ -379,17 +389,39 @@ check(
  * three rows and fits, so a check that only opened the menu would pass while
  * the panel a viewer actually needs stayed cut off.
  */
-await phone.locator('#ladder').scrollIntoViewIfNeeded()
-await phone.waitForTimeout(600)
-const phoneRoot = phone.locator('[data-case="ladder"] .xp-root')
+/*
+ * Its own page. Sharing one with the checks above left this opening a menu on
+ * a player that had already been played and whose controls had since hidden
+ * themselves, so the failure was a stale bar rather than anything about the
+ * menu - and it took a probe on a fresh page to tell those apart.
+ */
+const menuPhone = await browser.newPage({ ...devices['iPhone 13'] })
+await menuPhone.goto(BASE, { waitUntil: 'networkidle' })
+await menuPhone.waitForTimeout(1500)
+await menuPhone.locator('#ladder').scrollIntoViewIfNeeded()
+await menuPhone.waitForTimeout(700)
+const phoneRoot = menuPhone.locator('[data-case="ladder"] .xp-root')
 const pb = await phoneRoot.boundingBox()
-await phone.touchscreen.tap(pb.x + pb.width / 2, pb.y + pb.height / 2)
-await phone.waitForTimeout(400)
-await phone.locator('[data-case="ladder"] .xp-settings .xp-btn').tap()
-await phone.waitForTimeout(300)
-await phone.locator('[data-case="ladder"] .xp-menu-item', { hasText: 'Playback speed' }).tap()
-await phone.waitForTimeout(400)
-const panel = await phone.evaluate(() => {
+await menuPhone.touchscreen.tap(pb.x + pb.width / 2, pb.y + pb.height / 2)
+await menuPhone.waitForTimeout(500)
+await menuPhone.locator('[data-case="ladder"] .xp-settings .xp-btn').tap()
+await menuPhone.waitForTimeout(400)
+/*
+ * Clicked directly rather than through a locator. What this check measures is
+ * whether the panel fits once it is open; Playwright's actionability wait was
+ * failing on a 19px row for reasons that had nothing to do with that, and
+ * fighting it here would only have made the check flaky about the wrong thing.
+ */
+const opened = await menuPhone.evaluate(() => {
+  const row = [...document.querySelectorAll('[data-case="ladder"] .xp-menu-item')].find((el) =>
+    el.textContent.trim().startsWith('Playback speed'),
+  )
+  if (!row) return false
+  row.click()
+  return true
+})
+await menuPhone.waitForTimeout(400)
+const panel = await menuPhone.evaluate(() => {
   const root = document.querySelector('[data-case="ladder"] .xp-root')
   const menu = root.querySelector('.xp-menu')
   if (!menu) return null
@@ -408,9 +440,12 @@ const panel = await phone.evaluate(() => {
  */
 check(
   'the settings menu fits inside the player on a phone',
-  panel !== null && panel.over === 0,
-  panel && `${panel.over}px outside, ${panel.rows} rows, scrollable ${panel.scrollable}`,
+  opened && panel !== null && panel.over === 0,
+  opened
+    ? panel && `${panel.over}px outside, ${panel.rows} rows, scrollable ${panel.scrollable}`
+    : 'the speed panel never opened - this check tested nothing',
 )
+await menuPhone.close()
 
 /*
  * `.xp-center` holds the big play button and the error panel's Try again, and
@@ -420,6 +455,62 @@ check(
  * controls visible - so the bar is guaranteed to be up at exactly the moment
  * the button underneath it is the way out.
  */
+/*
+ * Quality and sound live on the bar on a wide player and as settings rows on a
+ * narrow one, and the two visibilities are meant to be exact mirrors:
+ * data-xp-until on the bar, data-xp-from in the menu, naming the same tier.
+ *
+ * "Shown only when the other is hidden" is the kind of condition that is right
+ * at the widths you happened to try and wrong at a boundary you did not, so
+ * these are the boundaries themselves - one pixel either side of 300 and 220 -
+ * rather than round numbers in the middle of each tier.
+ */
+const mirrorFails = []
+for (const w of [301, 300, 221, 220]) {
+  const m = await browser.newPage({ ...devices['iPhone 13'] })
+  await m.goto(BASE, { waitUntil: 'networkidle' })
+  await m.waitForTimeout(1200)
+  await m.locator('#ladder').scrollIntoViewIfNeeded()
+  await m.evaluate((px) => {
+    const h = document.querySelector('[data-case="ladder"]')
+    h.style.width = `${px}px`
+    h.style.maxWidth = `${px}px`
+  }, w)
+  await m.waitForTimeout(400)
+  /*
+   * isVisible, not count. Below 220px the big play button is display: none but
+   * still in the DOM, so count() returns one and click() then waits for an
+   * element that will never be actionable.
+   */
+  const big = m.locator('[data-case="ladder"] .xp-bigplay')
+  if (await big.isVisible()) {
+    await big.click()
+    await m.waitForTimeout(800)
+  }
+  await m.locator('[data-case="ladder"] .xp-root').hover()
+  await m.locator('[data-case="ladder"] .xp-settings .xp-btn').click()
+  await m.waitForTimeout(350)
+  const where = await m.evaluate(() => {
+    const root = document.querySelector('[data-case="ladder"] .xp-root')
+    const vis = (el) => !!el && el.getBoundingClientRect().width > 0
+    const row = (name) =>
+      [...root.querySelectorAll('.xp-menu-item')].find((x) => x.textContent.trim().startsWith(name))
+    return {
+      quality: [vis(root.querySelector('.xp-quality .xp-btn')), vis(row('Quality'))],
+      sound: [vis(root.querySelector('.xp-volume .xp-btn')), vis(row('Sound'))],
+    }
+  })
+  for (const [name, [onBar, inMenu]] of Object.entries(where)) {
+    if (onBar === inMenu) mirrorFails.push(`${name} at ${w}px: bar=${onBar} menu=${inMenu}`)
+  }
+  await m.close()
+}
+check(
+  'quality and sound are in exactly one place at every tier boundary',
+  mirrorFails.length === 0,
+  mirrorFails.join('; ') || 'both mirrored either side of 300px and 220px',
+)
+
 const fresh = await browser.newPage({ ...devices['iPhone 13'] })
 await fresh.goto(BASE, { waitUntil: 'networkidle' })
 await fresh.waitForTimeout(1500)

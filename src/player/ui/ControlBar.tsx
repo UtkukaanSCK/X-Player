@@ -161,13 +161,20 @@ export function ControlBar(props: Props) {
             />
           </div>
 
+          {/* Given the quality and sound props as well: it shows rows for both
+              at exactly the widths where the bar above has dropped their
+              buttons, so nothing the bar sheds becomes unreachable. */}
           <SettingsMenu
             state={state}
             audioTracks={props.audioTracks}
             activeAudioTrack={props.activeAudioTrack}
+            sources={props.sources}
             onRate={props.onRate}
             onTextTrack={props.onTextTrack}
             onAudioTrack={props.onAudioTrack}
+            onLevel={props.onLevel}
+            onSource={props.onSource}
+            onToggleMute={props.onToggleMute}
             onOpenChange={props.onMenuOpenChange}
           />
 

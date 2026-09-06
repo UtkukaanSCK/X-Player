@@ -887,6 +887,30 @@
 }
 
 /*
+ * The mirror of data-xp-until.
+ *
+ * A settings row marked data-xp-from is hidden until the tier where the bar
+ * drops the control it stands in for, so quality and sound are on the bar or
+ * in the menu but never in both and never in neither. The two attributes have
+ * to name the same tier for a control, and the pairs are:
+ *   quality  bar until 'tight'    menu from 'tight'
+ *   sound    bar until 'minimal'  menu from 'minimal'
+ */
+[data-xp-from] {
+  display: none;
+}
+@container xp (max-width: 300px) {
+  [data-xp-from='tight'] {
+    display: contents;
+  }
+}
+@container xp (max-width: 220px) {
+  [data-xp-from='minimal'] {
+    display: contents;
+  }
+}
+
+/*
  * Four tiers, measured against the player's own box.
  *
  * Each control declares the tier it survives to with `data-xp-until`, so
@@ -939,6 +963,15 @@
   [data-xp-until='compact'] {
     display: none;
   }
+  /* Fixed at 78px it took 88% of the height of a 159x89 player and covered
+     the settings button underneath it - so everything the bar folds into that
+     menu sat behind a button nobody could press. It scales with the tiers now.
+     Only ever visible before the first play, which is why it went unnoticed:
+     any probe that has already started the video never sees it again. */
+  .xp-bigplay {
+    width: 62px;
+    height: 62px;
+  }
 }
 
 @container xp (max-width: 300px) {
@@ -950,6 +983,13 @@
   }
 }
 
+@container xp (max-width: 300px) {
+  .xp-bigplay {
+    width: 52px;
+    height: 52px;
+  }
+}
+
 @container xp (max-width: 220px) {
   .xp-root {
     --xp-bar-h: 44px;
@@ -958,6 +998,18 @@
     padding: 10px 4px 4px;
   }
   [data-xp-until='minimal'] {
+    display: none;
+  }
+  /*
+   * Gone entirely, not shrunk further.
+   *
+   * A 16:9 player 220px wide is 124px tall, and the bar already carries a 44px
+   * play button that is guaranteed to be on screen: the controls never hide
+   * while playback has not started, which is exactly when this button exists.
+   * Two play affordances in 124px is one too many, and the one that overlaps
+   * the settings button is the one to drop.
+   */
+  .xp-bigplay {
     display: none;
   }
 }

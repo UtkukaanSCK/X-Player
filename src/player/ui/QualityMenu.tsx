@@ -1,5 +1,6 @@
 import type { PlayerState, XPlayerSource } from '../types'
 import { Option } from './MenuItem'
+import { qualityChoices } from './quality-choices'
 import { useMenu } from './useMenu'
 
 interface Props {
@@ -35,17 +36,9 @@ export function QualityMenu({ state, sources, onLevel, onSource, onOpenChange }:
    * is worse than offering nothing. So renditions only drive the menu when
    * there is genuinely a choice among them, and named sources always win.
    */
-  const hasSources = sources.length > 1
-  const hasLevels = !hasSources && state.levels.length > 1
-  if (!hasLevels && !hasSources) return null
-
-  const activeLevel = state.levels.find((l) => l.id === state.activeLevel)
-  const auto = hasLevels && state.selectedLevel === -1
-
-  // What is playing right now, not what was asked for: on auto the two differ.
-  const label = hasLevels
-    ? (activeLevel?.label ?? (auto ? 'Auto' : 'Quality'))
-    : (sources[state.activeSource]?.label ?? sources[0].label)
+  const choices = qualityChoices(state, sources, onLevel, onSource)
+  if (!choices) return null
+  const { label, auto, options } = choices
 
   const choose = (pick: () => void) => () => {
     pick()
@@ -71,32 +64,14 @@ export function QualityMenu({ state, sources, onLevel, onSource, onOpenChange }:
       {open && (
         <div className="xp-menu xp-menu-compact" role="menu">
           <div className="xp-menu-panel">
-            {hasLevels ? (
-              <>
-                <Option
-                  checked={state.selectedLevel === -1}
-                  label={`Auto${activeLevel ? ` (${activeLevel.label})` : ''}`}
-                  onSelect={choose(() => onLevel(-1))}
-                />
-                {state.levels.map((lv) => (
-                  <Option
-                    key={lv.id}
-                    checked={state.selectedLevel === lv.id}
-                    label={lv.label}
-                    onSelect={choose(() => onLevel(lv.id))}
-                  />
-                ))}
-              </>
-            ) : (
-              sources.map((source, i) => (
-                <Option
-                  key={source.src}
-                  checked={state.activeSource === i}
-                  label={source.label}
-                  onSelect={choose(() => onSource(i))}
-                />
-              ))
-            )}
+            {options.map((option) => (
+              <Option
+                key={option.key}
+                checked={option.checked}
+                label={option.label}
+                onSelect={choose(option.select)}
+              />
+            ))}
           </div>
         </div>
       )}
