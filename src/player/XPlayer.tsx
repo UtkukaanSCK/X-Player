@@ -11,6 +11,7 @@ import { useSubtitles } from './hooks/useSubtitles'
 import { usePlayerCommands } from './hooks/usePlayerCommands'
 import { useControlsVisibility } from './hooks/useControlsVisibility'
 import { useSurfaceGestures } from './hooks/useSurfaceGestures'
+import { useFocusRecovery } from './hooks/useFocusRecovery'
 import { useKeyboard, type PlayerCommands } from './hooks/useKeyboard'
 import { ControlBar } from './ui/ControlBar'
 import { CenterOverlay } from './ui/CenterOverlay'
@@ -159,6 +160,8 @@ export function XPlayer({
     state.playing,
     locked,
   )
+
+  useFocusRecovery(containerRef)
 
   const commandsRef = useRef<PlayerCommands>(commands)
   commandsRef.current = commands

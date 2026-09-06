@@ -114,7 +114,14 @@ export function useControlsVisibility(
     }
     const onFocusIn = () => {
       setVisible(true)
-      stop()
+      /*
+       * Only a real control holds the bar open. The container takes focus on
+       * an ordinary click on the picture, and treating that as "the keyboard
+       * is in here" left the controls up for good on a player someone had
+       * simply clicked to play. Same distinction the hide path makes.
+       */
+      if (focusInside()) stop()
+      else arm()
     }
     const onFocusOut = () => arm()
 
@@ -131,7 +138,7 @@ export function useControlsVisibility(
       el.removeEventListener('focusin', onFocusIn)
       el.removeEventListener('focusout', onFocusOut)
     }
-  }, [containerRef, show, arm, hideNow])
+  }, [containerRef, show, arm, hideNow, focusInside])
 
   return { visible, show }
 }

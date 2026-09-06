@@ -49,6 +49,43 @@ await page.waitForTimeout(2500)
 const playing = await state()
 check('plays', !playing.paused && playing.t > 0.5, JSON.stringify(playing))
 
+/*
+ * The play button removes itself the moment playback starts, and focus went
+ * with it - to the document body, where none of the shortcuts are listening.
+ * Every key was dead from then on for anyone who started a video the obvious
+ * way, which is why the 5-second skip looked unreliable rather than broken:
+ * click the picture and it worked, press the button and it did not.
+ *
+ * This has to be checked here, before the keyboard section below focuses the
+ * player by hand. That call is exactly what hid this for so long.
+ */
+check(
+  'the keyboard survives the play button removing itself',
+  await page.evaluate(() => {
+    const root = document.querySelector('[data-case="ladder"] .xp-root')
+    return document.activeElement !== document.body && root.contains(document.activeElement)
+  }),
+)
+
+const beforeSkip = (await state()).t
+await page.keyboard.press('ArrowRight')
+await page.waitForTimeout(500)
+const afterSkip = (await state()).t
+check(
+  'the 5s skip works without focusing the player by hand',
+  afterSkip - beforeSkip > 3.5 && afterSkip - beforeSkip < 6.5,
+  `${beforeSkip} -> ${afterSkip}`,
+)
+
+/* Put it back where it was: the checks below start from here. */
+await page.evaluate(
+  ([sel, t]) => {
+    document.querySelector(sel).currentTime = t
+  },
+  [V, beforeSkip],
+)
+await page.waitForTimeout(300)
+
 check(
   'progress bar is painted directly to the DOM',
   await page.evaluate(() => {
