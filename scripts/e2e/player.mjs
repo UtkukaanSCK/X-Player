@@ -335,6 +335,115 @@ check(
   (await page.locator('[data-case="single"] .xp-quality').count()) === 0,
 )
 
+/* ------------------------------------------------- one home per control */
+
+/*
+ * Every control the bar sheds has to arrive somewhere, and a tier system is
+ * only ever checked at the boundaries it was designed against. This walks the
+ * widths in between, where a mirrored condition - shown here only when hidden
+ * there - can be wrong without anyone having chosen it.
+ *
+ * Two things it learned the hard way. Count by visibility, not by presence:
+ * the menu rows sit in the DOM at every width and collapse to nothing, so a
+ * querySelector count reports every folded control twice. And check that the
+ * menu is usable, not just that the row is in it - a control folded into a
+ * panel that does not fit has been hidden rather than moved, which is the
+ * failure this whole arrangement exists to avoid.
+ */
+const LADDER = '[data-case="ladder"]'
+await page.locator('#ladder').scrollIntoViewIfNeeded()
+await page.evaluate((sel) => {
+  const v = document.querySelector(sel + ' video.xp-video')
+  v.muted = true
+  v.pause()
+}, LADDER)
+
+const ON_BAR = {
+  play: /^(Play|Pause|Replay)$/,
+  sound: /^(Mute|Unmute)$/,
+  quality: /^Quality/,
+  fullscreen: /^(Full screen|Exit full screen)$/,
+}
+const IN_MENU = { sound: /Sound/, quality: /Quality/ }
+
+const homeless = []
+const doubled = []
+const brokenMenu = []
+
+for (let width = 600; width >= 150; width -= 10) {
+  await page.evaluate(
+    ([sel, w]) => {
+      document.querySelector(sel + ' .xp-root').parentElement.style.width = w + 'px'
+    },
+    [LADDER, width],
+  )
+  await page.waitForTimeout(120)
+
+  const onBar = await page.evaluate(
+    (sel) =>
+      [...document.querySelectorAll(sel + ' .xp-bar [aria-label]')]
+        .filter((el) => getComputedStyle(el).display !== 'none' && el.getBoundingClientRect().width > 0)
+        .map((el) => el.getAttribute('aria-label')),
+    LADDER,
+  )
+
+  const settings = page.locator(LADDER + ' [aria-label="Settings"]').first()
+  const opened = await settings
+    .click({ timeout: 2500 })
+    .then(() => true)
+    .catch(() => false)
+  let menu = { rows: [], fits: true, lastReachable: true }
+  if (opened) {
+    await page.waitForTimeout(160)
+    menu = await page.evaluate((sel) => {
+      const root = document.querySelector(sel + ' .xp-root')
+      const box = root.getBoundingClientRect()
+      const panel = root.querySelector('.xp-menu')
+      if (!panel) return { rows: [], fits: false, lastReachable: false }
+      const pb = panel.getBoundingClientRect()
+      const rows = [...panel.querySelectorAll('[role="menuitem"]')].filter(
+        (el) => el.getBoundingClientRect().height > 0,
+      )
+      const last = rows[rows.length - 1]
+      const lb = last && last.getBoundingClientRect()
+      const hit = lb && document.elementFromPoint(lb.left + lb.width / 2, lb.top + lb.height / 2)
+      return {
+        rows: rows.map((el) => el.textContent.trim()),
+        fits: pb.left >= box.left - 1 && pb.right <= box.right + 1,
+        lastReachable: !!(last && hit && (hit === last || last.contains(hit))),
+      }
+    }, LADDER)
+    await page.keyboard.press('Escape').catch(() => {})
+    await page.waitForTimeout(110)
+  }
+
+  for (const [name, onBarPattern] of Object.entries(ON_BAR)) {
+    const bar = onBar.some((label) => onBarPattern.test(label)) ? 1 : 0
+    const inMenu = IN_MENU[name] && menu.rows.some((row) => IN_MENU[name].test(row)) ? 1 : 0
+    if (bar + inMenu === 0) homeless.push(width + "px " + name)
+    if (bar + inMenu > 1) doubled.push(width + "px " + name)
+  }
+  if (!opened) brokenMenu.push(width + "px could not be opened")
+  else if (!menu.fits) brokenMenu.push(width + "px spills outside the player")
+  else if (!menu.lastReachable) brokenMenu.push(width + "px last row unreachable")
+}
+
+check(
+  'every control has a home at every width from 600 to 150',
+  homeless.length === 0,
+  homeless.slice(0, 6).join(', '),
+)
+check(
+  'no control is in two places at once',
+  doubled.length === 0,
+  doubled.slice(0, 6).join(', '),
+)
+check(
+  'the menu the bar folds into is usable at every width',
+  brokenMenu.length === 0,
+  brokenMenu.length + ' widths: ' + brokenMenu.slice(0, 4).join(', '),
+)
+
 check('no uncaught page errors', pageErrors.length === 0, pageErrors.join(' | '))
 await page.close()
 
