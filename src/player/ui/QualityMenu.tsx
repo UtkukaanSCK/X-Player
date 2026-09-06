@@ -1,5 +1,5 @@
 import type { PlayerState, XPlayerSource } from '../types'
-import { CheckIcon } from './Icons'
+import { Option } from './MenuItem'
 import { useMenu } from './useMenu'
 
 interface Props {
@@ -47,6 +47,11 @@ export function QualityMenu({ state, sources, onLevel, onSource, onOpenChange }:
     ? (activeLevel?.label ?? (auto ? 'Auto' : 'Quality'))
     : (sources[state.activeSource]?.label ?? sources[0].label)
 
+  const choose = (pick: () => void) => () => {
+    pick()
+    setOpen(false)
+  }
+
   return (
     <div className="xp-quality" ref={wrapRef}>
       <button
@@ -68,52 +73,28 @@ export function QualityMenu({ state, sources, onLevel, onSource, onOpenChange }:
           <div className="xp-menu-panel">
             {hasLevels ? (
               <>
-                <button
-                  type="button"
-                  className="xp-menu-item xp-menu-option"
-                  role="menuitemradio"
-                  aria-checked={state.selectedLevel === -1}
-                  onClick={() => {
-                    onLevel(-1)
-                    setOpen(false)
-                  }}
-                >
-                  <span className="xp-menu-check">{state.selectedLevel === -1 && <CheckIcon />}</span>
-                  <span>Auto{activeLevel ? ` (${activeLevel.label})` : ''}</span>
-                </button>
+                <Option
+                  checked={state.selectedLevel === -1}
+                  label={`Auto${activeLevel ? ` (${activeLevel.label})` : ''}`}
+                  onSelect={choose(() => onLevel(-1))}
+                />
                 {state.levels.map((lv) => (
-                  <button
+                  <Option
                     key={lv.id}
-                    type="button"
-                    className="xp-menu-item xp-menu-option"
-                    role="menuitemradio"
-                    aria-checked={state.selectedLevel === lv.id}
-                    onClick={() => {
-                      onLevel(lv.id)
-                      setOpen(false)
-                    }}
-                  >
-                    <span className="xp-menu-check">{state.selectedLevel === lv.id && <CheckIcon />}</span>
-                    <span>{lv.label}</span>
-                  </button>
+                    checked={state.selectedLevel === lv.id}
+                    label={lv.label}
+                    onSelect={choose(() => onLevel(lv.id))}
+                  />
                 ))}
               </>
             ) : (
               sources.map((source, i) => (
-                <button
+                <Option
                   key={source.src}
-                  type="button"
-                  className="xp-menu-item xp-menu-option"
-                  role="menuitemradio"
-                  aria-checked={state.activeSource === i}
-                  onClick={() => {
-                    onSource(i)
-                    setOpen(false)
-                  }}
-                >
-                  <span className="xp-menu-check">{state.activeSource === i && <CheckIcon />}</span>
-                  <span>{source.label}</span>
-                </button>
+                  checked={state.activeSource === i}
+                  label={source.label}
+                  onSelect={choose(() => onSource(i))}
+                />
               ))
             )}
           </div>

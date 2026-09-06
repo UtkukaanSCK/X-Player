@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import type { PlayerState, XPlayerAudioTrack } from '../types'
-import { CheckIcon, ChevronLeftIcon, ChevronRightIcon, SettingsIcon } from './Icons'
+import { ChevronLeftIcon, SettingsIcon } from './Icons'
+import { Option, Row } from './MenuItem'
 import { useMenu } from './useMenu'
 
 const RATES = [0.5, 0.75, 1, 1.25, 1.5, 1.75, 2]
@@ -22,6 +23,8 @@ const PANEL_TITLE: Record<Exclude<Panel, 'main'>, string> = {
   subtitles: 'Subtitles',
   audio: 'Audio track',
 }
+
+const rateLabel = (rate: number) => (rate === 1 ? 'Normal' : `${rate}x`)
 
 /**
  * Speed, subtitles and the audio track. Quality used to live here too, but it
@@ -54,6 +57,12 @@ export function SettingsMenu({
   // claim a selection that does not exist. Empty is the honest answer.
   const audioLabel = audioTracks.find((t) => t.id === activeAudioTrack)?.label ?? ''
 
+  /* Every choice does the same two things: make it, then come back. */
+  const choose = (pick: () => void) => () => {
+    pick()
+    setPanel('main')
+  }
+
   return (
     <div className="xp-settings" ref={wrapRef}>
       <button
@@ -73,27 +82,12 @@ export function SettingsMenu({
         <div className="xp-menu" role="menu">
           {panel === 'main' && (
             <div className="xp-menu-panel">
-              <button type="button" className="xp-menu-item" role="menuitem" onClick={() => setPanel('speed')}>
-                <span>Playback speed</span>
-                <span className="xp-menu-value">
-                  <span>{state.rate === 1 ? 'Normal' : `${state.rate}x`}</span> <ChevronRightIcon />
-                </span>
-              </button>
+              <Row label="Playback speed" value={rateLabel(state.rate)} onOpen={() => setPanel('speed')} />
               {state.textTracks.length > 0 && (
-                <button type="button" className="xp-menu-item" role="menuitem" onClick={() => setPanel('subtitles')}>
-                  <span>Subtitles</span>
-                  <span className="xp-menu-value">
-                    <span>{subtitleLabel}</span> <ChevronRightIcon />
-                  </span>
-                </button>
+                <Row label="Subtitles" value={subtitleLabel} onOpen={() => setPanel('subtitles')} />
               )}
               {audioTracks.length > 1 && (
-                <button type="button" className="xp-menu-item" role="menuitem" onClick={() => setPanel('audio')}>
-                  <span>Audio track</span>
-                  <span className="xp-menu-value">
-                    <span>{audioLabel}</span> <ChevronRightIcon />
-                  </span>
-                </button>
+                <Row label="Audio track" value={audioLabel} onOpen={() => setPanel('audio')} />
               )}
             </div>
           )}
@@ -116,72 +110,40 @@ export function SettingsMenu({
 
               {panel === 'speed' &&
                 RATES.map((r) => (
-                  <button
+                  <Option
                     key={r}
-                    type="button"
-                    className="xp-menu-item xp-menu-option"
-                    role="menuitemradio"
-                    aria-checked={state.rate === r}
-                    onClick={() => {
-                      onRate(r)
-                      setPanel('main')
-                    }}
-                  >
-                    <span className="xp-menu-check">{state.rate === r && <CheckIcon />}</span>
-                    <span>{r === 1 ? 'Normal' : `${r}x`}</span>
-                  </button>
+                    checked={state.rate === r}
+                    label={rateLabel(r)}
+                    onSelect={choose(() => onRate(r))}
+                  />
                 ))}
 
               {panel === 'subtitles' && (
                 <>
-                  <button
-                    type="button"
-                    className="xp-menu-item xp-menu-option"
-                    role="menuitemradio"
-                    aria-checked={state.activeTextTrack === -1}
-                    onClick={() => {
-                      onTextTrack(-1)
-                      setPanel('main')
-                    }}
-                  >
-                    <span className="xp-menu-check">{state.activeTextTrack === -1 && <CheckIcon />}</span>
-                    <span>Off</span>
-                  </button>
+                  <Option
+                    checked={state.activeTextTrack === -1}
+                    label="Off"
+                    onSelect={choose(() => onTextTrack(-1))}
+                  />
                   {state.textTracks.map((t, i) => (
-                    <button
+                    <Option
                       key={t.id}
-                      type="button"
-                      className="xp-menu-item xp-menu-option"
-                      role="menuitemradio"
-                      aria-checked={state.activeTextTrack === i}
-                      onClick={() => {
-                        onTextTrack(i)
-                        setPanel('main')
-                      }}
-                    >
-                      <span className="xp-menu-check">{state.activeTextTrack === i && <CheckIcon />}</span>
-                      <span>{t.label}</span>
-                    </button>
+                      checked={state.activeTextTrack === i}
+                      label={t.label}
+                      onSelect={choose(() => onTextTrack(i))}
+                    />
                   ))}
                 </>
               )}
 
               {panel === 'audio' &&
                 audioTracks.map((t) => (
-                  <button
+                  <Option
                     key={t.id}
-                    type="button"
-                    className="xp-menu-item xp-menu-option"
-                    role="menuitemradio"
-                    aria-checked={activeAudioTrack === t.id}
-                    onClick={() => {
-                      onAudioTrack(t.id)
-                      setPanel('main')
-                    }}
-                  >
-                    <span className="xp-menu-check">{activeAudioTrack === t.id && <CheckIcon />}</span>
-                    <span>{t.label}</span>
-                  </button>
+                    checked={activeAudioTrack === t.id}
+                    label={t.label}
+                    onSelect={choose(() => onAudioTrack(t.id))}
+                  />
                 ))}
             </div>
           )}
