@@ -988,6 +988,33 @@
     width: 52px;
     height: 52px;
   }
+
+  /*
+   * At these widths the menu takes the player instead of sitting above the bar.
+   *
+   * Two things were wrong and they compounded. `min-width` beats `max-width` in
+   * CSS, so the 200px floor cancelled the container cap and the menu hung off
+   * the left edge of anything narrower - 95px off a 159px player, into a root
+   * that clips. And anchoring at `bottom: calc(100% + 12px)` assumes there is
+   * room above the bar to open into; on an 89px-tall player there is none, so
+   * the height cap resolved to zero and four rows lived in a 14px sliver.
+   *
+   * Making the wrapper static hands the menu to `.xp-controls` as its
+   * containing block, which spans the player's width and sits at its bottom -
+   * so the menu can be given the whole box. Covering the bar is fine while it
+   * is open: the bar is what you used to get here.
+   */
+  .xp-settings {
+    position: static;
+  }
+  .xp-menu {
+    left: 6px;
+    right: 6px;
+    bottom: 6px;
+    min-width: 0;
+    max-width: none;
+    max-height: calc(100cqh - 12px);
+  }
 }
 
 @container xp (max-width: 220px) {
