@@ -277,7 +277,7 @@ check(
 /* --------------------------------------------------- the metered-link path */
 
 /*
- * The comparison costs about five megabytes, because two players streaming
+ * The comparison costs about six megabytes, because two players streaming
  * the same two-minute clip is what it is. On a connection that has asked to be
  * spent carefully it must build the apparatus and wait, and it must say the
  * number rather than spending it and explaining afterwards.
@@ -304,7 +304,7 @@ for (const saveData of [true, false]) {
   await metered.waitForTimeout(6000)
   const state = await metered.evaluate(() => ({
     loading: [...document.querySelectorAll('#proof video')].filter((v) => v.currentSrc).length,
-    saysCost: (document.querySelector('#proof')?.textContent ?? '').includes('5 MB'),
+    saysCost: (document.querySelector('#proof')?.textContent ?? '').includes('6 MB'),
   }))
 
   if (saveData) {

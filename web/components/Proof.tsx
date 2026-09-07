@@ -124,7 +124,7 @@ export function Proof() {
   const renditions = useMemo(
     () => [
       { src: SMALL_CLIP, label: "270p" },
-      { src: CLIP, label: "480p" },
+      { src: CLIP, label: "360p" },
     ],
     [],
   )
@@ -456,7 +456,7 @@ function Consent({ onStart }: { onStart: () => void }) {
         Play the comparison
       </button>
       <p className="max-w-md text-caption leading-relaxed text-muted">
-        It streams the same clip to both players, about 5 MB. Your browser said this
+        It streams the same clip to both players, about 6 MB. Your browser said this
         connection should be spent carefully, so it is waiting for you.
       </p>
     </div>
