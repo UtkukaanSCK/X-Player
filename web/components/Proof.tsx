@@ -75,7 +75,7 @@ export function Proof() {
    * buffer at full speed first and then taking the connection away is both
    * fairer and closer to what happens to someone on a train.
    *
-   * The cache is no longer a problem either: two minutes of video is far more
+   * The cache is no longer a problem either: this much video is far more
    * than gets buffered, so there is always more to fetch and the worker always
    * has something to throttle.
    *
@@ -91,7 +91,7 @@ export function Proof() {
   /*
    * Twelve megabytes is not spent on a metered connection without asking.
    *
-   * Two players streaming the same two-minute clip is what the comparison is;
+   * Two players streaming the same clip is what the comparison is;
    * it cannot be made cheap without making it dishonest, since a clip small
    * enough to be cheap is one a throttle cannot starve. So on a link that has
    * asked to be spent carefully the apparatus is built and left waiting, and
@@ -456,7 +456,7 @@ function Consent({ onStart }: { onStart: () => void }) {
         Play the comparison
       </button>
       <p className="max-w-md text-caption leading-relaxed text-muted">
-        It streams the same two-minute clip to both players, about 6 MB. Your browser said this
+        It streams the same clip to both players, about 5 MB. Your browser said this
         connection should be spent carefully, so it is waiting for you.
       </p>
     </div>
