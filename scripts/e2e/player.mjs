@@ -335,6 +335,95 @@ check(
   (await page.locator('[data-case="single"] .xp-quality').count()) === 0,
 )
 
+const LADDER_CASE = '[data-case="ladder"]'
+
+/* --------------------------------------------- the panels that block play */
+
+/*
+ * The error and the resume offer have to fit the player they are blocking.
+ *
+ * Both were drawn for a player with room to spare, and neither could be
+ * answered on a small one: in a 159x89 box the error panel came out 203px
+ * tall so Try again fell outside a root that is overflow: hidden, and the
+ * offer ran 58px past the right edge taking Start over with it. Every button
+ * in them was also 18 or 19 pixels tall, at every width.
+ *
+ * The markup is injected rather than provoked. An error needs a failure and
+ * the offer needs a saved position longer than the demo clip, and what is
+ * under test here is the stylesheet either way - these are the panels a
+ * viewer meets when something has already gone wrong, so being unable to
+ * answer them is the worst place for it.
+ */
+const ERROR_MARKUP =
+  '<div class="xp-error" role="alert"><svg width="24" height="24"></svg>' +
+  '<p class="xp-error-text">Connection lost. Check your internet and try again.</p>' +
+  '<button type="button" class="xp-error-retry">Try again</button></div>'
+const RESUME_MARKUP =
+  '<span>Resume from <strong>1:23</strong>?</span>' +
+  '<button type="button" class="xp-resume-primary">Resume</button>' +
+  '<button type="button" class="xp-resume-ghost">Start over</button>'
+
+/* elementFromPoint speaks viewport coordinates, so the player has to be in it. */
+await page.locator('#ladder').scrollIntoViewIfNeeded()
+await page.waitForTimeout(400)
+
+const unreachable = []
+const tooSmall = []
+for (const width of [640, 400, 342, 300, 250, 220, 200, 159]) {
+  for (const kind of ["error", "resume"]) {
+    const found = await page.evaluate(
+      ([sel, w, which, errorHtml, resumeHtml]) => {
+        const root = document.querySelector(sel + " .xp-root")
+        root.parentElement.style.width = w + "px"
+        root.querySelectorAll(".xp-probe").forEach((n) => n.remove())
+        const panel = document.createElement("div")
+        if (which === "error") {
+          panel.className = "xp-center xp-center-blocking xp-center-error xp-probe"
+          panel.innerHTML = errorHtml
+        } else {
+          panel.className = "xp-resume xp-probe"
+          panel.innerHTML = resumeHtml
+        }
+        root.appendChild(panel)
+        const box = root.getBoundingClientRect()
+        return [...root.querySelectorAll(".xp-probe button")].map((button) => {
+          const r = button.getBoundingClientRect()
+          const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+          return {
+            name: button.textContent.trim(),
+            inside:
+              r.left >= box.left - 1 &&
+              r.right <= box.right + 1 &&
+              r.top >= box.top - 1 &&
+              r.bottom <= box.bottom + 1,
+            hittable: hit === button || button.contains(hit),
+            h: Math.round(r.height),
+          }
+        })
+      },
+      [LADDER_CASE, width, kind, ERROR_MARKUP, RESUME_MARKUP],
+    )
+    for (const button of found) {
+      if (!button.inside || !button.hittable) unreachable.push(width + "px " + button.name)
+      if (button.h < 44) tooSmall.push(width + "px " + button.name + " " + button.h + "px")
+    }
+  }
+}
+await page.evaluate((sel) => {
+  document.querySelectorAll(sel + " .xp-probe").forEach((n) => n.remove())
+}, LADDER_CASE)
+
+check(
+  'every button in a blocking panel can be reached at every width',
+  unreachable.length === 0,
+  unreachable.slice(0, 6).join(', '),
+)
+check(
+  'and is big enough to hit',
+  tooSmall.length === 0,
+  tooSmall.slice(0, 6).join(', '),
+)
+
 /* ------------------------------------------------- one home per control */
 
 /*
@@ -350,7 +439,7 @@ check(
  * panel that does not fit has been hidden rather than moved, which is the
  * failure this whole arrangement exists to avoid.
  */
-const LADDER = '[data-case="ladder"]'
+const LADDER = LADDER_CASE
 await page.locator('#ladder').scrollIntoViewIfNeeded()
 await page.evaluate((sel) => {
   const v = document.querySelector(sel + ' video.xp-video')

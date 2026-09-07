@@ -229,6 +229,21 @@
   bottom: calc(var(--xp-bar-h) + 30px);
 }
 
+/*
+ * An error is the exception: it takes the whole player.
+ *
+ * Leaving the bar clear is right while the big play button is up, because
+ * that strip is how a viewer brings the controls back. After a failure it is
+ * not - playback has stopped and the only useful action is Try again - and
+ * on a short player the reservation is fatal. A 159x89 box gives 70px to the
+ * bar and its seek row, leaving 19px for a panel that needs 65, so the button
+ * went off the bottom of the player and out of a root that is overflow:
+ * hidden.
+ */
+.xp-center-error {
+  bottom: 0;
+}
+
 .xp-bigplay {
   display: grid;
   place-items: center;
@@ -351,7 +366,15 @@
   position: absolute;
   left: 16px;
   bottom: calc(var(--xp-bar-h) + 28px);
-  z-index: 6;
+  /*
+   * Above the centred layer, which is 7.
+   *
+   * Both can be on screen at once: a returning viewer with a saved position
+   * sees the big play button and this offer together, and that layer takes
+   * pointer events for the whole picture. Resume and Start over were both
+   * unclickable in exactly the state the banner exists to be answered in.
+   */
+  z-index: 8;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -391,6 +414,160 @@
 .xp-resume-ghost:hover {
   color: var(--xp-fg) !important;
 }
+
+/*
+ * The panels that block playback have to fit the player they are blocking.
+ *
+ * All three were drawn for a player with room to spare. In a 159x89 box the
+ * error panel came out 203px tall, so "Try again" - the only way out of a
+ * failed video - ended up outside a root that is overflow: hidden, and the
+ * resume banner ran 58px past the right edge, taking "Start over" with it.
+ * A control a viewer cannot reach is worse here than anywhere else, because
+ * these are the panels people meet when something has already gone wrong.
+ */
+.xp-error {
+  max-width: min(340px, 100cqw - 24px);
+  max-height: calc(100cqh - 24px);
+  overflow-y: auto;
+}
+
+.xp-resume {
+  right: 16px;
+  flex-wrap: wrap;
+}
+
+/*
+ * Big enough to hit. These sat at 18 and 19 pixels tall at every width,
+ * including the widest, which is under any target guidance there is and
+ * furthest below it on the phones where a thumb is doing the aiming.
+ */
+/*
+ * Written as .xp-root .xp-btn-* for the reason set out further down: the
+ * defence layer is .xp-root button at 0-1-1, and it sets min-height and
+ * min-width to 0 with !important. A class-only selector loses to it however
+ * many !importants it carries, which is how these buttons stayed at 18px
+ * through a first attempt at this very fix.
+ */
+.xp-root .xp-error-retry,
+.xp-root .xp-resume-primary,
+.xp-root .xp-resume-ghost {
+  display: inline-flex !important;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px !important;
+  min-width: 44px !important;
+}
+
+@container xp (max-width: 400px) {
+  .xp-error {
+    gap: 8px;
+    padding: 14px 16px;
+  }
+  .xp-error-text {
+    font-size: 12.5px;
+  }
+}
+
+/*
+ * Below this the panel is most of the picture, so it sheds everything that is
+ * not the message or the way out. The icon is the first to go: it says the
+ * same thing the words do, and it is the only part nobody needs to read.
+ */
+/*
+ * Below this the panel is most of the picture, so it sheds everything that is
+ * not the message or the way out, and the resume offer stops trying to sit
+ * above a control bar that is now most of the height.
+ */
+@container xp (max-width: 300px) {
+  .xp-error {
+    gap: 6px;
+    padding: 10px 12px;
+    border-radius: 12px;
+    max-height: 100cqh;
+  }
+  /* The icon says what the words say, and it is the part nobody reads. */
+  .xp-error > svg {
+    display: none;
+  }
+  /*
+   * Clamped, because the button has to fit and the button is the point.
+   *
+   * An 89px player has room for a line or two of message, a gap, a 44px
+   * target and its padding - and the untruncated sentence wraps to four lines
+   * at this width, which pushed Try again out of the player entirely. Nothing
+   * is lost to anyone listening: the panel is role="alert", so the whole
+   * message is announced whatever is drawn.
+   */
+  .xp-error-text {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    min-height: 0;
+    font-size: 11.5px;
+    line-height: 1.35;
+  }
+  /*
+   * The offer sits over the bar rather than above it.
+   *
+   * Anchored above the controls it needs the bar height plus its own, and a
+   * 159x89 player has neither to spare - with 44px targets the banner came
+   * out 166px tall against 21px of room, so both buttons ended up outside the
+   * player. Covering the bar costs nothing here: the surface gestures are
+   * already disabled while an offer is up, because answering it is the only
+   * thing to do.
+   */
+  .xp-resume {
+    left: 8px;
+    right: 8px;
+    bottom: 8px;
+    gap: 6px;
+    padding: 8px;
+    font-size: 12px;
+  }
+  /*
+   * The question takes its own line and the two answers share the next one.
+   *
+   * Left to wrap on their own they fit by a pixel or miss by one depending
+   * on the width, and when they miss they stack - which at 159x89 made the
+   * banner 110px tall in 81px of room and put both buttons outside the
+   * player. Sharing the row is not a preference here, it is what keeps them
+   * on screen.
+   */
+  .xp-resume > span {
+    flex: 1 0 100%;
+  }
+  .xp-root .xp-resume-primary,
+  .xp-root .xp-resume-ghost {
+    flex: 1 1 0;
+    padding: 6px 12px !important;
+  }
+}
+
+/*
+ * Narrower still. One line of message, and the offer drops its question: the
+ * buttons already read "Resume" and "Start over", which is that question asked
+ * and answered, and the time it named is on the seek bar.
+ */
+@container xp (max-width: 220px) {
+  .xp-error {
+    padding: 8px 10px;
+  }
+  .xp-error-text {
+    -webkit-line-clamp: 1;
+  }
+  .xp-root .xp-error-retry {
+    padding: 6px 14px !important;
+  }
+  .xp-resume > span {
+    display: none;
+  }
+  .xp-root .xp-resume-primary,
+  .xp-root .xp-resume-ghost {
+    padding: 6px 8px !important;
+  }
+}
+
 
 /* -------------------------------------------------------------- controls */
 

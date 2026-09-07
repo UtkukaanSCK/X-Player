@@ -14,7 +14,7 @@ interface Props {
 export function CenterOverlay({ waiting, showBigPlay, ended, error, onPlay, onRetry }: Props) {
   if (error) {
     return (
-      <div className="xp-center xp-center-blocking">
+      <div className="xp-center xp-center-blocking xp-center-error">
         {/*
           * Announced, not just drawn. Playback stopping is the one moment a
           * viewer who cannot see the screen most needs telling, and it was the
