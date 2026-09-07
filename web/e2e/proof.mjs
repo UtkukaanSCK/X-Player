@@ -106,6 +106,46 @@ check(
   `${bareRate.toFixed(1)} s vs ${xpRate.toFixed(1)} s`,
 )
 
+/* ------------------------------------------------ nothing plays unwatched */
+
+/*
+ * Scrolled past, both players stop, and both start again on the way back.
+ *
+ * They used not to agree about this: the plain video stopped on its own and
+ * the player kept decoding, which is a browser heuristic rather than anyone
+ * deciding. Checked in both directions, because stopping them is easy and a
+ * comparison that never restarts is worse than one that never stops.
+ *
+ * The section is 200svh with a sticky interior, so this has to scroll past
+ * the whole of it - scrolling within it keeps both on screen, which is the
+ * point of the sticky.
+ */
+await page.evaluate(() => window.scrollTo({ top: document.body.scrollHeight, behavior: "instant" }))
+await page.waitForTimeout(2500)
+const parked = await readBoth()
+check(
+  'scrolled past, neither player is still decoding',
+  parked.bare.paused === true && parked.xp.paused === true,
+  JSON.stringify(parked),
+)
+
+await page.waitForTimeout(4000)
+const stillParked = await readBoth()
+check(
+  'and neither creeps forward while away',
+  stillParked.bare.t - parked.bare.t < 0.3 && stillParked.xp.t - parked.xp.t < 0.3,
+  `bare ${parked.bare.t} -> ${stillParked.bare.t}, xp ${parked.xp.t} -> ${stillParked.xp.t}`,
+)
+
+await page.evaluate(() => window.scrollTo({ top: 0, behavior: "instant" }))
+await page.waitForTimeout(3000)
+const resumed = await readBoth()
+check(
+  'coming back starts both of them again',
+  resumed.bare.paused === false && resumed.xp.paused === false,
+  JSON.stringify(resumed),
+)
+
 /* ------------------------------------------------- reloading starts over */
 
 await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight * 0.4))

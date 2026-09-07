@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { motion, useMotionValueEvent, useReducedMotion, useScroll, useTransform } from 'motion/react'
 import { XPlayer } from 'x-player'
 import 'x-player/style.css'
@@ -132,6 +132,47 @@ export function Proof() {
 
   const bareReading = useReading(useCallback(() => bareRef.current, []))
   const playerReading = useReading(useCallback(() => playerVideo, [playerVideo]))
+
+  /*
+   * Nothing decodes where nobody can see it.
+   *
+   * Scrolled past the section on a phone, the plain <video> stopped on its
+   * own and the player's did not: 3.2s frozen against 6.2 climbing to 8.1
+   * over ten seconds. That difference is a browser heuristic rather than
+   * anyone's decision, and a comparison whose two halves behave differently
+   * the moment nobody is watching is not a comparison. Both stop here, and
+   * both start again together, which is the same reason they share a start
+   * mechanism in the first place.
+   *
+   * This saves a decode and not a byte: measured off-screen, the buffers went
+   * on filling from cache and no further bytes arrived at all. On a phone the
+   * decode is the expensive half anyway.
+   *
+   * The section is the thing observed, not the players. It is 200svh with a
+   * sticky interior, so the players are on screen for the whole of it; they
+   * are only gone once the section itself is.
+   */
+  const [watching, setWatching] = useState(true)
+
+  useEffect(() => {
+    const section = container.current
+    if (!section || typeof IntersectionObserver === 'undefined') return
+    const observer = new IntersectionObserver(([entry]) => setWatching(entry.isIntersecting), {
+      threshold: 0,
+    })
+    observer.observe(section)
+    return () => observer.disconnect()
+  }, [])
+
+  useEffect(() => {
+    // No source means the metered gate is still holding; there is nothing to play.
+    if (!src) return
+    for (const video of [bareRef.current, playerVideo]) {
+      if (!video) continue
+      if (watching) void video.play().catch(() => {})
+      else video.pause()
+    }
+  }, [watching, playerVideo, src])
 
   const current = MODES.find((m) => m.id === mode) ?? MODES[0]
 
