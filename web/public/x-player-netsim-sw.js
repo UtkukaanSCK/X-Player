@@ -24,11 +24,11 @@ let mode = 'normal'
  * entire file and nothing that happened to the connection afterwards could
  * possibly affect them - the demonstration would degrade into two videos
  * playing from memory. A real connection delivers a comfortable lead, not the
- * whole film at once, and 70 kB/s against the clip's 48 kB/s is exactly that.
+ * whole film at once, and 34 kB/s against the clip's 24 kB/s is exactly that.
  */
 const RATES = {
-  normal: 70 * 1024,
-  slow3g: 16 * 1024,
+  normal: 34 * 1024,
+  slow3g: 8 * 1024,
 }
 
 /**
@@ -46,7 +46,7 @@ const RATES = {
  *
  * A media element opens a few range requests at once, so the rate a player sees
  * is some multiple of this. What matters is that the multiple is the same for
- * both, and that the result is well under the 48 kB/s the clip needs.
+ * both, and that the result is well under the 24 kB/s the clip needs.
  */
 const CHUNK_BYTES = 4 * 1024
 

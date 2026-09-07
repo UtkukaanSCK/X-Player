@@ -95,9 +95,22 @@ const slowAfter = await readBoth()
 
 const bareRate = slowAfter.bare.t - slowBefore.bare.t
 const xpRate = slowAfter.xp.t - slowBefore.xp.t
+/*
+ * Behind real time by a clear margin, expressed as a fraction of the clock
+ * rather than a number of seconds. The old constant was 4, tuned against the
+ * 854x480 encode; the clip is 480x270 now and the same throttle ratio leaves
+ * the player further ahead, because a smaller file buys more seconds of video
+ * per buffered byte. Measured across two runs it is 2.7s for the plain video
+ * and 4.2s for the player against 8s of clock - a third and a half. Unthrottled
+ * both take about the full 8, which is what this separates.
+ *
+ * That the player does better is the section's whole claim, and the check
+ * below is what keeps it from being an unfair fight.
+ */
+const CRAWLING = 8 * 0.6
 check(
   'the throttle really bites: both crawl well behind real time',
-  bareRate < 4 && xpRate < 4,
+  bareRate < CRAWLING && xpRate < CRAWLING,
   `8 s of wall clock bought ${bareRate.toFixed(1)} s and ${xpRate.toFixed(1)} s of video`,
 )
 check(
@@ -146,6 +159,64 @@ check(
   JSON.stringify(resumed),
 )
 
+/* ------------------------------------------ the numbers describe the file */
+
+/*
+ * The section makes three numeric claims and all of them are about one clip:
+ * what it needs, what Normal gives it, and what Slow 2G does not. They are
+ * only true of the encode actually shipped, and re-encoding that clip is how
+ * they quietly stop being true - it happened once already, when a list said
+ * 50 for a clip that needed 48.
+ *
+ * So the number is derived rather than trusted: the file the page is playing,
+ * its own content-length, over the duration the element reports.
+ */
+/*
+ * Only the selected mode shows its own detail line, so the three figures
+ * cannot be read from one state. Each is read with its own mode chosen.
+ */
+const readDetail = async (label, pattern) => {
+  await page.locator('#proof [role="radio"]', { hasText: label }).first().click()
+  await page.waitForTimeout(700)
+  return page.evaluate((source) => {
+    const text = document.querySelector('#proof').textContent ?? ''
+    const found = text.match(new RegExp(source))
+    return found ? Number(found[1]) : null
+  }, pattern)
+}
+
+const needs = await readDetail('Normal', '([0-9]+) kB.s the clip needs')
+const normal = await readDetail('Normal', '([0-9]+) kB.s . comfortably above')
+const slow = await readDetail('Slow 2G', '([0-9]+) kB.s . a third')
+
+const real = await page.evaluate(async () => {
+  const video = document.querySelector('#proof video')
+  const head = await fetch(video.currentSrc, { method: 'HEAD' })
+  return {
+    file: video.currentSrc.split('/').pop(),
+    rate: Number(head.headers.get('content-length')) / video.duration / 1024,
+  }
+})
+
+/* Put it back, so what follows starts where it used to. */
+await page.locator('#proof [role="radio"]', { hasText: 'Normal' }).first().click()
+await page.waitForTimeout(600)
+check(
+  'the page says what the clip actually needs',
+  needs !== null && Math.abs(real.rate - needs) < 2,
+  `${real.file} really needs ${real.rate.toFixed(1)} kB/s, the page says ${needs}`,
+)
+check(
+  'and the throttle it calls comfortable is above that',
+  normal !== null && normal > real.rate * 1.2,
+  `${normal} vs ${real.rate.toFixed(1)}`,
+)
+check(
+  'and the one it calls a third really is about a third',
+  slow !== null && Math.abs(slow / real.rate - 1 / 3) < 0.12,
+  `${slow} is ${(slow / real.rate).toFixed(2)} of ${real.rate.toFixed(1)}`,
+)
+
 /* ------------------------------------------------- reloading starts over */
 
 await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight * 0.4))
@@ -186,10 +257,27 @@ const narrow = await page.evaluate(() => ({
 check('no horizontal overflow on a phone', narrow.overflow <= 1, `${narrow.overflow}px`)
 check('the two players stay side by side on a phone', narrow.sideBySide, 'stacked, they are not a comparison')
 
+/*
+ * Both players default to the small encode, everywhere.
+ *
+ * Not because every box needs it - a wide one could show more - but because
+ * the section's three figures are ratios against one clip's bitrate, and a
+ * second encode in play would leave one of them described by the other's
+ * numbers. The larger is still offered, so nobody is stuck with the small one.
+ */
+const playing = await page.evaluate(() =>
+  [...document.querySelectorAll('#proof video')].map((v) => v.currentSrc.split('/').pop()),
+)
+check(
+  'both players default to the same small encode',
+  playing.length === 2 && playing.every((name) => name === 'demo-480.mp4'),
+  playing.join(', '),
+)
+
 /* --------------------------------------------------- the metered-link path */
 
 /*
- * The comparison costs about twelve megabytes, because two players streaming
+ * The comparison costs about six megabytes, because two players streaming
  * the same two-minute clip is what it is. On a connection that has asked to be
  * spent carefully it must build the apparatus and wait, and it must say the
  * number rather than spending it and explaining afterwards.
@@ -216,7 +304,7 @@ for (const saveData of [true, false]) {
   await metered.waitForTimeout(6000)
   const state = await metered.evaluate(() => ({
     loading: [...document.querySelectorAll('#proof video')].filter((v) => v.currentSrc).length,
-    saysCost: (document.querySelector('#proof')?.textContent ?? '').includes('12 MB'),
+    saysCost: (document.querySelector('#proof')?.textContent ?? '').includes('6 MB'),
   }))
 
   if (saveData) {

@@ -106,9 +106,16 @@ check('robots points at the sitemap', robots.includes('Sitemap:'), robots.split(
 
 const mediaDir = join(OUT, 'media')
 const clips = readdirSync(mediaDir).filter((name) => name.endsWith('.mp4'))
+/*
+ * Two now, and both are played: a phone-sized box gets the 480x270 encode
+ * and a wide one gets the 854x480. Still an exact list rather than a count,
+ * because the point of the check is that nothing else has crept into the
+ * directory.
+ */
+const EXPECTED_CLIPS = ['demo-480.mp4', 'demo-long.mp4']
 check(
-  'only the clip the page plays is shipped',
-  clips.length === 1 && clips[0] === 'demo-long.mp4',
+  'only the clips the page plays are shipped',
+  clips.slice().sort().join(',') === EXPECTED_CLIPS.join(','),
   clips.join(', ') || '(none)',
 )
 
@@ -121,11 +128,14 @@ const bytesIn = (dir) =>
   }, 0)
 
 const total = bytesIn(OUT) / 1024 / 1024
-const clipMb = statSync(join(mediaDir, 'demo-long.mp4')).size / 1024 / 1024
+const clipMb = EXPECTED_CLIPS.reduce(
+  (sum, name) => sum + statSync(join(mediaDir, name)).size / 1024 / 1024,
+  0,
+)
 check(
-  'the build is mostly the demo clip, not accidental weight',
+  'the build is mostly the demo clips, not accidental weight',
   total - clipMb < 3,
-  `${total.toFixed(1)} MB total, ${clipMb.toFixed(1)} MB of it the clip`,
+  `${total.toFixed(1)} MB total, ${clipMb.toFixed(1)} MB of it the clips`,
 )
 
 /* -------------------------------------------------------- what the wizard offers */

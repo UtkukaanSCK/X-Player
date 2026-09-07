@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { motion, useMotionValueEvent, useReducedMotion, useScroll, useTransform } from 'motion/react'
 import { XPlayer } from 'x-player'
 import 'x-player/style.css'
@@ -26,19 +26,20 @@ import { Readout } from './Readout'
  * always visibly either moving or frozen.
  */
 const CLIP = withBase('/media/demo-long.mp4')
+const SMALL_CLIP = withBase('/media/demo-480.mp4')
 const POSTER = withBase('/media/demo.jpg')
 
 /*
  * The rates are the worker's own, not approximations of them.
  *
- * The clip needs 48 kB/s; this list said 50, which is the kind of small
+ * The clip needs 24 kB/s; an earlier list said 50 against a clip that needed
  * discrepancy that costs a page its credibility on the one claim it is making.
  * The id stays `slow3g` because the worker and its stored mode use it, and
  * renaming a persisted value to tidy a label is not worth the migration.
  */
 const MODES: { id: NetworkMode; label: string; detail: string }[] = [
-  { id: 'normal', label: 'Normal', detail: '70 kB/s — comfortably above the 48 kB/s the clip needs' },
-  { id: 'slow3g', label: 'Slow 2G', detail: '16 kB/s — a third of what the clip needs, to both of them' },
+  { id: 'normal', label: 'Normal', detail: '34 kB/s — comfortably above the 24 kB/s the clip needs' },
+  { id: 'slow3g', label: 'Slow 2G', detail: '8 kB/s — a third of what the clip needs, to both of them' },
 ]
 
 /**
@@ -52,7 +53,7 @@ const MODES: { id: NetworkMode; label: string; detail: string }[] = [
 const VERDICT: Record<NetworkMode, string> = {
   normal: 'Both play. Same file, same speed, same result - as you would hope.',
   slow3g:
-    'Both crawl, at the same rate, and both show they are waiting. No player can pull a 48 kB/s clip through a link a third that wide, and this one does not pretend to. Watch the buffer figures fall towards zero.',
+    'Both crawl, at the same rate, and both show they are waiting. No player can pull a 24 kB/s clip through a link a third that wide, and this one does not pretend to. Watch the buffer figures fall towards zero.',
 }
 
 export function Proof() {
@@ -99,7 +100,35 @@ export function Proof() {
   const frugal = useFrugalConnection()
   const [consented, setConsented] = useState(false)
   const holding = frugal && !consented
-  const src = ready && !holding ? CLIP : undefined
+  /*
+   * One encode for everyone, sized for the box that matters most.
+   *
+   * The comparison box is 159x89 CSS px on a phone, which on a DPR 3 screen
+   * is 477x267 real pixels - so 854x480 was oversampled even for retina, and
+   * a phone was decoding about three times the pixels its box could show,
+   * twice over.
+   *
+   * I tried giving each layout the encode its own box wanted, and it cannot
+   * work: the three figures on screen are all ratios against one clip's
+   * bitrate, and two clips means one of them is being described by numbers
+   * belonging to the other. A wide layout playing the 50 kB/s file under a
+   * caption promising 24 would also be starved by the "comfortable" rate,
+   * which is the demonstration failing rather than a cosmetic mismatch.
+   *
+   * So both get the small one and the large one stays in the quality menu.
+   * The cost is honest and worth naming: a 530px desktop box shows a 480x270
+   * source, which is soft on a retina laptop. The page is about how a player
+   * behaves on a bad connection, and the phone it behaves worst on is the one
+   * that could not decode it.
+   */
+  const renditions = useMemo(
+    () => [
+      { src: SMALL_CLIP, label: "270p" },
+      { src: CLIP, label: "480p" },
+    ],
+    [],
+  )
+  const src = ready && !holding ? renditions[0].src : undefined
 
   /** Once someone picks a condition themselves, scrolling stops overriding it. */
   const manual = useRef(false)
@@ -226,7 +255,8 @@ export function Proof() {
             >
               <div className="stage-player h-full w-full">
                 <XPlayer
-                  src={src}
+                  src={undefined}
+                  sources={src ? renditions : undefined}
                   poster={POSTER}
                   muted
                   autoPlay
@@ -426,7 +456,7 @@ function Consent({ onStart }: { onStart: () => void }) {
         Play the comparison
       </button>
       <p className="max-w-md text-caption leading-relaxed text-muted">
-        It streams the same two-minute clip to both players, about 12 MB. Your browser said this
+        It streams the same two-minute clip to both players, about 6 MB. Your browser said this
         connection should be spent carefully, so it is waiting for you.
       </p>
     </div>
