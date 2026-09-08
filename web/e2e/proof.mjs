@@ -274,6 +274,94 @@ check(
   playing.join(', '),
 )
 
+/* ------------------------------------------------- seeking under the throttle */
+
+/*
+ * A seek has to resume, and the throttle has to still be on while it does.
+ *
+ * The worker used to re-create the element's request to add cache: no-store,
+ * and a media element's request is mode: no-cors - so its headers went behind
+ * the no-cors guard and Range, which is not on the CORS safelist, was dropped.
+ * A seek to 90s came back 200 with the whole file, so 2.3 MB of already-played
+ * video arrived before the first frame anyone was waiting for. Measured at 71
+ * seconds.
+ *
+ * Three things are asserted and only the last is about seeking, because a
+ * seek check on its own passes loudest when the worker is broken: a fetch
+ * handler that throws never answers, every request goes straight to the
+ * server at full speed, and the seeks come back instant. node --check does not
+ * catch that - it is a runtime error, not a syntax one.
+ *
+ * Nor does asserting the response shape help. A fetch from the page is
+ * same-origin, so its Range survives even the broken worker: measured 206 with
+ * a correct Content-Range on the code that had this bug. Only the element's
+ * own no-cors request loses it, and an opaque response cannot be read. So the
+ * apparatus is checked directly and the fault is checked by its behaviour.
+ */
+const seeking = await browser.newPage({ viewport: { width: 1440, height: 900 } })
+await seeking.goto(BASE, { waitUntil: 'domcontentloaded' })
+await seeking.waitForSelector('#proof video', { timeout: 30_000 })
+let seekWorker = true
+try {
+  await seeking.waitForFunction(() => !!navigator.serviceWorker.controller, null, { timeout: 30_000 })
+} catch {
+  seekWorker = false
+}
+check('the worker is controlling the page while seeking is measured', seekWorker)
+
+/* The throttle is on: three seconds of video cannot arrive instantly at 34 kB/s. */
+const warmUp = await seeking.evaluate(async () => {
+  const video = document.querySelector('#proof video.xp-video')
+  const started = performance.now()
+  const ahead = () => {
+    let end = 0
+    for (let i = 0; i < video.buffered.length; i += 1) end = Math.max(end, video.buffered.end(i))
+    return end
+  }
+  while (ahead() < 3 && performance.now() - started < 20_000) {
+    await new Promise((done) => setTimeout(done, 100))
+  }
+  return { ms: Math.round(performance.now() - started), buffered: +ahead().toFixed(1) }
+})
+check(
+  'and it is actually metering, not passing requests through',
+  warmUp.ms >= 1500,
+  `three seconds of video took ${warmUp.ms}ms to arrive`,
+)
+
+/*
+ * Loose on purpose: a good run is 2 to 3 seconds and the bug was 71.
+ *
+ * This is the assertion that catches it, and it is the only one that does.
+ * Restoring the old worker into the built output and re-running: the worker
+ * check passed, the metering check passed at 4077ms, and this one failed with
+ * "did not resume within 20s". A fourth check I had written - that the element
+ * does not end up holding the whole clip - passed on the broken worker too,
+ * because 3 MB has not finished arriving inside the window. It described the
+ * fault without catching it, so it is not here.
+ */
+const seekResult = await seeking.evaluate(async () => {
+  const video = document.querySelector('#proof video.xp-video')
+  const started = performance.now()
+  video.currentTime = 90
+  const settled = await Promise.race([
+    new Promise((done) => video.addEventListener('seeked', () => done(true), { once: true })),
+    new Promise((done) => setTimeout(() => done(false), 20_000)),
+  ])
+  let covered = 0
+  for (let i = 0; i < video.buffered.length; i += 1) {
+    covered += video.buffered.end(i) - video.buffered.start(i)
+  }
+  return { ms: Math.round(performance.now() - started), settled, covered: +covered.toFixed(1) }
+})
+check(
+  'a seek resumes rather than fetching the whole clip first',
+  seekResult.settled && seekResult.ms < 10_000,
+  seekResult.settled ? `${seekResult.ms}ms` : 'did not resume within 20s',
+)
+
+await seeking.close()
+
 /* --------------------------------------------------- the metered-link path */
 
 /*
