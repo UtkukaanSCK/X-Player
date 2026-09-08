@@ -107,10 +107,15 @@ check('robots points at the sitemap', robots.includes('Sitemap:'), robots.split(
 const mediaDir = join(OUT, 'media')
 const clips = readdirSync(mediaDir).filter((name) => name.endsWith('.mp4'))
 /*
- * Two now, and both are played: a phone-sized box gets the 480x270 encode
- * and a wide one gets the 854x480. Still an exact list rather than a count,
- * because the point of the check is that nothing else has crept into the
- * directory.
+ * Two, and the page plays one of them. demo-480 is the 480x270 encode both
+ * players default to at every width; demo-long is the 640x360 the quality
+ * menu offers on top of it. An earlier arrangement handed each layout the
+ * encode its own box wanted, and it could not work - the section prints one
+ * clip's bitrate and both throttle rates are ratios against it, so a second
+ * encode in play leaves one of them described by the other's numbers.
+ *
+ * Still an exact list rather than a count, because the point of the check is
+ * that nothing else has crept into the directory.
  */
 const EXPECTED_CLIPS = ['demo-480.mp4', 'demo-long.mp4']
 check(
