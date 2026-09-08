@@ -43,8 +43,20 @@ sampled every four seconds, nothing 40 seconds apart or more scores closer than
 29 of 255, where the looped clip scored 3 for frames a full period apart.
 
 The 480x270 encode is rate-targeted rather than quality-targeted, at 132 kbps, so
-it sustains 24.7 kB/s. That number is not decoration: the section prints it, and
+it sustains 24.2 kB/s. That number is not decoration: the section prints it, and
 both throttle rates are ratios against it.
+
+Both encodes also carry a keyframe every four seconds rather than wherever the
+scene cuts. A seek cannot show a frame until it reaches a keyframe, and with
+scene-cut placement the worst gap was 10.4 seconds: seeking to 32s took 8.0s to
+resume while seeking to 90s took 2.0s, on the same file, because one target
+happened to sit a third of a second past a keyframe and the other ten seconds
+past one. Capped at four, the worst measured seek is 5.5s.
+
+It costs picture rather than bytes, which is why it is worth having. Fixing the
+rate at 132 kbps means the extra keyframes come out of quality instead of size -
+SSIM against the master falls from 0.972 to 0.961 - so the sustained rate, the
+figure the page prints and both throttle ratios all stay exactly where they were.
 
 `demo-en.vtt`, `demo-tr.vtt` are written for this project and carry the same
 license as the rest of the repository (MIT). They describe the player, not the

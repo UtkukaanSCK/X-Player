@@ -330,36 +330,55 @@ check(
 )
 
 /*
- * Loose on purpose: a good run is 2 to 3 seconds and the bug was 71.
+ * Several targets, and the worst of them has to settle.
  *
- * This is the assertion that catches it, and it is the only one that does.
- * Restoring the old worker into the built output and re-running: the worker
- * check passed, the metering check passed at 4077ms, and this one failed with
- * "did not resume within 20s". A fourth check I had written - that the element
- * does not end up holding the whole clip - passed on the broken worker too,
- * because 3 MB has not finished arriving inside the window. It described the
- * fault without catching it, so it is not here.
+ * Seeking one hardcoded point measured a keyframe rather than the player. On
+ * the encode this check was written against, a seek to 90s cost 2.0s and one
+ * to 32s cost 8.0s - same file, same worker, same throttle - because 90.0 sat
+ * a third of a second past a keyframe and 32.0 sat ten seconds past one. The
+ * margin the check appeared to have was an accident of where a keyframe fell,
+ * and re-encoding the clip re-rolls it. Picking a deliberately bad target
+ * instead would swap one encode-specific constant for another.
+ *
+ * Settling is what catches the fault. The broken worker never settled inside
+ * the race at any target, so the numeric bound below only guards a partial
+ * regression that has never happened - which is a reason to set it clear of
+ * false failures rather than tight. The clip now caps its keyframe gap at 4s
+ * and the worst measured seek is 5.5s, so 12s is better than two to one.
  */
-const seekResult = await seeking.evaluate(async () => {
-  const video = document.querySelector('#proof video.xp-video')
-  const started = performance.now()
-  video.currentTime = 90
-  const settled = await Promise.race([
-    new Promise((done) => video.addEventListener('seeked', () => done(true), { once: true })),
-    new Promise((done) => setTimeout(() => done(false), 20_000)),
-  ])
-  let covered = 0
-  for (let i = 0; i < video.buffered.length; i += 1) {
-    covered += video.buffered.end(i) - video.buffered.start(i)
-  }
-  return { ms: Math.round(performance.now() - started), settled, covered: +covered.toFixed(1) }
-})
-check(
-  'a seek resumes rather than fetching the whole clip first',
-  seekResult.settled && seekResult.ms < 10_000,
-  seekResult.settled ? `${seekResult.ms}ms` : 'did not resume within 20s',
-)
+const SEEK_TARGETS = [32, 41, 63.9, 90]
+const SEEK_BOUND_MS = 12_000
 
+const seekTimes = []
+for (const target of SEEK_TARGETS) {
+  const attempt = await seeking.evaluate(async (t) => {
+    const video = document.querySelector('#proof video.xp-video')
+    const started = performance.now()
+    video.currentTime = t
+    const settled = await Promise.race([
+      new Promise((done) => video.addEventListener('seeked', () => done(true), { once: true })),
+      new Promise((done) => setTimeout(() => done(false), 20_000)),
+    ])
+    return { ms: Math.round(performance.now() - started), settled }
+  }, target)
+  seekTimes.push({ target, ...attempt })
+  await seeking.waitForTimeout(1200)
+}
+
+const stuck = seekTimes.filter((s) => !s.settled)
+const slowest = seekTimes.reduce((worst, s) => (s.ms > worst.ms ? s : worst), seekTimes[0])
+
+check(
+  'every seek resumes rather than fetching the clip from the start',
+  stuck.length === 0,
+  stuck.map((s) => `${s.target}s did not settle`).join(', '),
+)
+check(
+  'and the slowest of them is not far off the quickest',
+  slowest.ms < SEEK_BOUND_MS,
+  seekTimes.map((s) => `${s.target}s ${(s.ms / 1000).toFixed(1)}s`).join(
+),
+)
 await seeking.close()
 
 /* --------------------------------------------------- the metered-link path */
