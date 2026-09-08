@@ -594,6 +594,74 @@ check(
 )
 
 /*
+ * The tiers exist so that touch targets never shrink, and nothing tested that.
+ *
+ * The stylesheet grows every button to 44px under `pointer: coarse`, and the
+ * commit that introduced the tiers claimed 44px targets from 600px down to
+ * 159px. But the only other 44px assertion in this file is about the buttons
+ * inside blocking panels, and it runs on the desktop page - so the claim the
+ * tiers were built to keep was resting on the stylesheet alone. A media query
+ * that stopped matching, or a `flex` that shrank a button below its declared
+ * size the way one did before, would have gone unnoticed.
+ *
+ * Its own page, for the reason the menu checks below have one: this resizes
+ * the player, and a mutated width left behind changes what every later check
+ * on a shared page is measuring.
+ *
+ * The button count is asserted too. Every filter here narrows - visible
+ * buttons, then undersized ones - so a selector that matched nothing would
+ * report an empty list of failures, which reads exactly like success.
+ */
+const targetPhone = await browser.newPage({ ...devices['iPhone 13'] })
+await targetPhone.goto(BASE, { waitUntil: 'networkidle' })
+await targetPhone.locator('#ladder').scrollIntoViewIfNeeded()
+await targetPhone.waitForTimeout(1200)
+check(
+  'the phone context reports a coarse pointer',
+  await targetPhone.evaluate(() => matchMedia('(pointer: coarse)').matches),
+  'without it the sizes below are the desktop ones and prove nothing',
+)
+const undersized = []
+const counted = []
+for (const width of [600, 520, 420, 380, 300, 260, 220, 190, 159]) {
+  const seen = await targetPhone.evaluate(
+    ([sel, w]) => {
+      const root = document.querySelector(sel + ' .xp-root')
+      root.style.width = w + 'px'
+      root.getBoundingClientRect()
+      const shown = [...root.querySelectorAll('.xp-btn')].filter((b) => b.offsetParent !== null)
+      return {
+        total: shown.length,
+        small: shown
+          .map((b) => {
+            const r = b.getBoundingClientRect()
+            return {
+              label: b.getAttribute('aria-label') ?? '?',
+              w: Math.round(r.width),
+              h: Math.round(r.height),
+            }
+          })
+          .filter((b) => b.w < 44 || b.h < 44),
+      }
+    },
+    [LADDER_CASE, width],
+  )
+  counted.push(`${width}px:${seen.total}`)
+  for (const b of seen.small) undersized.push(`${width}px ${b.label} ${b.w}x${b.h}`)
+}
+check(
+  'every tier still shows controls to measure',
+  counted.every((c) => Number(c.split(':')[1]) >= 3),
+  counted.join(' '),
+)
+check(
+  'every control keeps a 44px touch target at every tier',
+  undersized.length === 0,
+  undersized.slice(0, 6).join(', '),
+)
+await targetPhone.close()
+
+/*
  * The menu is anchored above a bar at the bottom of a player that is
  * overflow: hidden, and its height was capped at a constant taller than a
  * phone-sized player. The speed panel ran off the top edge with its first
