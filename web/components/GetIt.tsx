@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react'
 import { motion, useReducedMotion, useScroll, useTransform } from 'motion/react'
+import { REVEAL_EASE, useRevealProgress } from '@/lib/reveal'
 
 import { assetsFor, MEASURED_AT, SNIPPETS, type Playing, type Target, type Use } from '@/lib/downloads'
 import {
@@ -62,8 +63,12 @@ export function GetIt() {
   useEffect(() => setPlatform(guessPlatform(navigator.userAgent)), [])
 
   const { scrollYProgress } = useScroll({ target: container, offset: ['start end', 'center center'] })
-  const y = useTransform(scrollYProgress, [0, 0.35], reduced ? [0, 0] : [80, 0])
-  const opacity = useTransform(scrollYProgress, [0, 0.3], reduced ? [1, 1] : [0, 1])
+  const progress = useRevealProgress(scrollYProgress, !reduced)
+
+  /* Eighty pixels, because this section arrives on its own rather than being
+     handed the screen by the one above. Source rises further and says why. */
+  const y = useTransform(progress, [0, 0.35], reduced ? [0, 0] : [80, 0], { ease: REVEAL_EASE })
+  const opacity = useTransform(progress, [0, 0.3], reduced ? [1, 1] : [0, 1], { ease: REVEAL_EASE })
 
   /*
    * A section that has been tabbed into stops hiding.

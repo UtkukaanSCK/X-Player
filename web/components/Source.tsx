@@ -2,6 +2,7 @@
 
 import { useRef, useState } from 'react'
 import { motion, useReducedMotion, useScroll, useTransform } from 'motion/react'
+import { REVEAL_EASE, useRevealProgress } from '@/lib/reveal'
 
 const REPO = 'https://github.com/UtkukaanSCK/X-Player'
 
@@ -25,9 +26,11 @@ export function Source() {
    * section above recedes over the last of its scroll while this one comes up
    * through the same part of the screen, so the two read as one movement.
    */
-  const y = useTransform(scrollYProgress, [0, 0.3], reduced ? [0, 0] : [90, 0])
-  const opacity = useTransform(scrollYProgress, [0, 0.25], reduced ? [1, 1] : [0, 1])
-  const scale = useTransform(scrollYProgress, [0, 0.3], reduced ? [1, 1] : [0.96, 1])
+  const progress = useRevealProgress(scrollYProgress, !reduced)
+
+  const y = useTransform(progress, [0, 0.3], reduced ? [0, 0] : [90, 0], { ease: REVEAL_EASE })
+  const opacity = useTransform(progress, [0, 0.25], reduced ? [1, 1] : [0, 1], { ease: REVEAL_EASE })
+  const scale = useTransform(progress, [0, 0.3], reduced ? [1, 1] : [0.96, 1], { ease: REVEAL_EASE })
 
   /*
    * A section that has been tabbed into stops hiding.

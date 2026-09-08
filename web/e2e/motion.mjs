@@ -33,12 +33,31 @@ const scrolled = await moving.evaluate(() => {
 })
 check('the stage moves with the scroll', atTop !== scrolled, `${atTop} -> ${scrolled}`)
 
-// Scrolling through the section is what changes the connection, so it has to
-// actually reach the far end rather than merely fading things in.
+/*
+ * Scrolling moves the picture and nothing else.
+ *
+ * It used to switch the comparison to Slow 2G on the way past, which meant
+ * the page changed its own demonstration while someone was reading it and
+ * nobody could look at the throttled case except when the scroll decided.
+ * The two buttons are the only thing that changes it now, so this scrolls the
+ * whole way and requires the choice to be where it was left.
+ */
 await moving.evaluate(() => window.scrollTo(0, document.body.scrollHeight * 0.45))
 await moving.waitForTimeout(2500)
-const driven = await moving.locator('#proof [role="radio"][aria-checked="true"]').innerText()
-check('scrolling drives the connection, not just the visuals', driven.trim() !== 'Normal', `reached ${driven.trim()}`)
+const afterScrolling = await moving.locator('#proof [role="radio"][aria-checked="true"]').innerText()
+check(
+  'scrolling does not change the connection by itself',
+  afterScrolling.trim() === 'Normal',
+  `ended on ${afterScrolling.trim()}`,
+)
+
+/* And the buttons still do, which is what makes the check above mean something. */
+await moving.evaluate(() => window.scrollTo(0, 0))
+await moving.waitForTimeout(600)
+await moving.locator('#proof [role="radio"]', { hasText: 'Slow 2G' }).first().click()
+await moving.waitForTimeout(800)
+const picked = await moving.locator('#proof [role="radio"][aria-checked="true"]').innerText()
+check('choosing Slow 2G still selects it', picked.trim() === 'Slow 2G', picked.trim())
 await moving.close()
 
 /* ------------------------------------------------------------ reduced motion */

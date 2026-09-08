@@ -1,11 +1,12 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { motion, useMotionValueEvent, useReducedMotion, useScroll, useTransform } from 'motion/react'
+import { motion, useReducedMotion, useScroll, useTransform } from 'motion/react'
 import { XPlayer } from 'x-player'
 import 'x-player/style.css'
 import { useNetworkSim, type NetworkMode } from '@/hooks/useNetworkSim'
 import { useFrugalConnection } from '@/hooks/useFrugalConnection'
+import { REVEAL_EASE, useRevealProgress } from '@/lib/reveal'
 import { useReading } from '@/hooks/useReading'
 import { withBase } from '@/lib/site'
 import { ProofHeading } from './ProofHeading'
@@ -130,8 +131,6 @@ export function Proof() {
   )
   const src = ready && !holding ? renditions[0].src : undefined
 
-  /** Once someone picks a condition themselves, scrolling stops overriding it. */
-  const manual = useRef(false)
   const applied = useRef<NetworkMode>('normal')
 
   const change = useCallback(
@@ -145,19 +144,28 @@ export function Proof() {
 
   const { scrollYProgress } = useScroll({ target: container, offset: ['start start', 'end end'] })
 
-  // Scrolling through the section degrades the connection. This is the Apple
-  // trick - scroll position drives state rather than merely revealing content -
-  // and here the state it drives is a real one.
-  useMotionValueEvent(scrollYProgress, 'change', (progress) => {
-    if (manual.current || status.kind !== 'ready') return
-    change(progress < 0.45 ? 'normal' : 'slow3g')
-  })
+  const progress = useRevealProgress(scrollYProgress, !reduced)
 
-  // Settles as the section pins, then holds. It does not fade out: once the
-  // sticky viewport lets go, the comparison simply scrolls away like anything
-  // else, and the next section is already rising to meet it.
-  const stageScale = useTransform(scrollYProgress, [0, 0.12], reduced ? [1, 1] : [0.94, 1])
-  const stageY = useTransform(scrollYProgress, [0, 0.12], reduced ? [0, 0] : [40, 0])
+  /* How much of the section the stage takes to settle. Wider than it was: an
+     eased curve spends its travel early, so the same 0.12 finished in a fifth
+     of a screen and read as a jump. */
+  const SETTLE = 0.2
+
+  /*
+   * Settles as the section pins, then holds. It does not fade out: once the
+   * sticky viewport lets go, the comparison simply scrolls away like anything
+   * else, and the next section is already rising to meet it.
+   *
+   * The connection used to be driven from here too - scrolling past the
+   * halfway mark switched the comparison to Slow 2G on its own. It read as the
+   * page changing its own demonstration under the reader, and it meant nobody
+   * could look at the throttled case without the page deciding when. The two
+   * buttons are the only thing that changes it now.
+   */
+  const stageScale = useTransform(progress, [0, SETTLE], reduced ? [1, 1] : [0.94, 1], {
+    ease: REVEAL_EASE,
+  })
+  const stageY = useTransform(progress, [0, SETTLE], reduced ? [0, 0] : [40, 0], { ease: REVEAL_EASE })
 
   const bareReading = useReading(useCallback(() => bareRef.current, []))
   const playerReading = useReading(useCallback(() => playerVideo, [playerVideo]))
@@ -280,7 +288,6 @@ export function Proof() {
               unavailable={status.kind === 'unavailable' ? status.reason : null}
               pending={status.kind === 'pending'}
               onPick={(next) => {
-                manual.current = true
                 change(next)
               }}
             />
