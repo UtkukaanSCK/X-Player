@@ -145,11 +145,54 @@ self.addEventListener('fetch', (event) => {
   }
   if (!simulated) return
 
+  /*
+   * Rebuilt from the URL rather than forwarded as-is, carrying the original
+   * headers across by hand.
+   *
+   * A media element's request is mode: 'no-cors', and re-creating one with any
+   * init at all puts its headers behind the no-cors guard, which drops Range -
+   * that header is CORS-safelisted but not no-CORS-safelisted. The whole file
+   * then comes back 200 where a 206 was asked for, so every seek re-downloads
+   * from byte zero. Measured against this worker: a seek to 90s asked for
+   * bytes=2293760- and was sent all 3,006,827 bytes - 2.3 MB of already-played
+   * video arriving before a single frame anyone was waiting for. Same page,
+   * same server, only this call changed: 71.3 seconds of frozen player
+   * before, 2.1 after.
+   *
+   * One trade is worth naming before someone measures it and calls it a
+   * regression: under the old call the second and third seeks cost 0.3s, and
+   * now they cost 2 to 3. That speed was bought by the first seek having
+   * already dragged the entire clip down, which is both the 71 second freeze
+   * and the thing this page warns about elsewhere - a player holding the whole
+   * file is a player no throttle setting can touch.
+   *
+   *   fetch(request, { cache: 'no-store' })              -> 200, no Content-Range
+   *   fetch(new Request(request, { cache: 'no-store' })) -> 200, no Content-Range
+   *   fetch(request)                                     -> 206, correct range
+   *   fetch(url, { cache: 'no-store', headers })         -> 206, correct range
+   *
+   * The last is what runs: a fresh request is not under a no-cors guard, so the
+   * headers survive and 'no-store' can be kept. Dropping the init would also
+   * restore seeking, but the HTTP cache would then be free to answer, and a
+   * cached clip is delivered without touching the network - the throttle would
+   * apply to nothing and the page would sit there insisting it had slowed a
+   * connection down.
+   *
+   * The whole header list is copied rather than Range alone, so nothing else
+   * the element sent is quietly dropped. And copied rather than written: setting
+   * Range unconditionally would turn the one request that legitimately carries
+   * none - a plain load - into a range request, answered 206 where it should be
+   * 200. Measured all three shapes: no Range in, none out, 200 and the whole
+   * file; bytes=0- and bytes=2293760- both answered 206 with the right range.
+   *
+   * The rate was exonerated on the way, which is worth writing down because the
+   * obvious next idea is to stop throttling Normal. The throttle was left
+   * exactly as it is and the seek still went from 71.3s to 2.1s, so the headroom
+   * between 34 kB/s and the clip's 24 was never the binding constraint. Removing
+   * it would cost the section the stated rate it is built on and fix nothing.
+   */
   event.respondWith(
-    // Explicitly past the HTTP cache. A cached clip would be delivered without
-    // touching the network, so the throttle would apply to nothing and the page
-    // would sit there insisting it had slowed a connection down.
-    fetch(request, { cache: 'no-store' }).then((response) => {
+    fetch(request.url, { cache: 'no-store', headers: request.headers }).then((response) => {
       if (!response.body) return response
       return throttle(response)
     }),
