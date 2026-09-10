@@ -26,7 +26,6 @@ interface Options {
   timeLabelRef: RefObject<HTMLSpanElement | null>
   /** While the viewer drags, the position comes from the pointer, not the video. */
   seekingRef: RefObject<boolean>
-  playing: boolean
 }
 
 export interface ProgressPaint {
@@ -49,7 +48,7 @@ export interface ProgressPaint {
  * times a second told assistive technology the slider had moved when it had
  * not.
  */
-export function useProgressPaint({ videoRef, refs, timeLabelRef, seekingRef, playing }: Options): ProgressPaint {
+export function useProgressPaint({ videoRef, refs, timeLabelRef, seekingRef }: Options): ProgressPaint {
   /* -1 is a value no sink can legitimately hold, so the first write always lands. */
   const last = useRef({ position: -1, buffered: -1, second: -1 })
 
@@ -60,7 +59,16 @@ export function useProgressPaint({ videoRef, refs, timeLabelRef, seekingRef, pla
         last.current.position = position
         const value = position / STEP
         if (refs.played.current) refs.played.current.style.transform = `scaleX(${value})`
-        if (refs.handle.current) refs.handle.current.style.left = `${value * 100}%`
+        /*
+         * translateX rather than `left`, which is what this used to write.
+         *
+         * `left` is a layout property, so the playhead forced a layout on every
+         * frame it moved: 1442 layouts in ten seconds of playback, against 10
+         * with the element taken off the page. The percentage means the same
+         * thing here only because the handle is stretched across the whole
+         * track - see the note beside .xp-seek-handle.
+         */
+        if (refs.handle.current) refs.handle.current.style.transform = `translateX(${value * 100}%)`
       }
 
       /*
@@ -112,12 +120,30 @@ export function useProgressPaint({ videoRef, refs, timeLabelRef, seekingRef, pla
     }
   }, [videoRef, refs, seekingRef, drawRatio])
 
-  /* While playing, redraw every frame; otherwise once, on whatever just changed. */
+  return { paint, drawRatio }
+}
+
+/**
+ * Runs the paint loop, and only while there is something to look at.
+ *
+ * The loop used to be driven by `playing` alone, which meant the playhead was
+ * redrawn sixty times a second behind hidden controls - the ordinary state of
+ * a player someone is actually watching. Nothing about that is visible, and on
+ * a weak device it is main-thread work taken from decoding.
+ *
+ * It lives out here rather than inside useProgressPaint because visibility is
+ * not known that early: it depends on whether a menu is open, which depends on
+ * state built further down the component. Keeping the loop separate lets the
+ * caller start it at the point both facts exist.
+ *
+ * `paint()` runs once on every change of `running`, so the bar is correct at
+ * the moment the loop stops and again as it restarts, rather than showing a
+ * position it held whenever the controls last went away.
+ */
+export function useProgressLoop(paint: () => void, running: boolean) {
   useEffect(() => {
-    if (!playing) {
-      paint()
-      return
-    }
+    paint()
+    if (!running) return
     let frame = 0
     const tick = () => {
       paint()
@@ -125,7 +151,5 @@ export function useProgressPaint({ videoRef, refs, timeLabelRef, seekingRef, pla
     }
     frame = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(frame)
-  }, [playing, paint])
-
-  return { paint, drawRatio }
+  }, [paint, running])
 }

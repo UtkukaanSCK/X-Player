@@ -678,6 +678,19 @@
   opacity: 1;
   transform: translate(-50%, 0);
 }
+/*
+ * A button whose menu is open does not also explain itself.
+ *
+ * The tooltip sits above the button and the menu opens over that same space,
+ * so hovering the settings button with its own menu open drew "Settings"
+ * underneath the panel - visible as text bleeding through the menu's edge, and
+ * naming something the viewer is already looking at. The pointer is necessarily
+ * hovering the button at the moment the menu opens, so this was the ordinary
+ * case rather than an unlucky one.
+ */
+.xp-btn-active[data-xp-tip]:hover::after {
+  opacity: 0;
+}
 
 /* ------------------------------------------------------------- seek bar */
 
@@ -729,7 +742,35 @@
   background: var(--xp-accent);
 }
 
+/*
+ * The handle is a full-width layer that slides, and the dot it carries is a
+ * pseudo-element. It reads like indirection and it is the whole optimisation.
+ *
+ * The playhead used to be this element positioned with `left: <n>%`, rewritten
+ * every frame by the paint loop. `left` is a layout property, so each write
+ * forced a layout: measured at 1442 layouts in ten seconds of playback, of
+ * which 1432 disappeared when the element was removed from the page. Nothing
+ * else in the loop costs anything - the played and buffered bars are written
+ * with `transform: scaleX()`, which the compositor handles.
+ *
+ * `transform: translateX()` is the composited equivalent, but a percentage
+ * there resolves against the element's own width, and 50% of a 13px dot is not
+ * half the bar. Stretching the element to the full track makes the percentage
+ * mean what the loop already computes, and moves the dot to ::after so the
+ * pop-in scale still belongs to the dot rather than to a bar-wide box.
+ *
+ * `inset: 0` covers the whole track, so `pointer-events: none` is load-bearing
+ * rather than tidy: without it this layer would swallow every click meant for
+ * the bar underneath.
+ */
 .xp-seek-handle {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  will-change: transform;
+}
+.xp-seek-handle::after {
+  content: '';
   position: absolute;
   top: 50%;
   left: 0;
@@ -741,11 +782,9 @@
   box-shadow: 0 1px 6px rgba(0, 0, 0, 0.5);
   transform: translateY(-50%) scale(0);
   transition: transform 0.14s var(--xp-ease);
-  pointer-events: none;
-  will-change: left;
 }
-.xp-seek:hover .xp-seek-handle,
-.xp-seek:focus-visible .xp-seek-handle {
+.xp-seek:hover .xp-seek-handle::after,
+.xp-seek:focus-visible .xp-seek-handle::after {
   transform: translateY(-50%) scale(1);
 }
 
@@ -1256,7 +1295,7 @@
   .xp-seek-track {
     height: 4px;
   }
-  .xp-seek-handle {
+  .xp-seek-handle::after {
     transform: translateY(-50%) scale(1);
   }
 }

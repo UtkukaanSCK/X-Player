@@ -123,6 +123,45 @@ await page.waitForTimeout(700)
 const scrubbed = await state()
 check('dragging seeks to roughly 60%', scrubbed.t / scrubbed.dur > 0.45 && scrubbed.t / scrubbed.dur < 0.75, `${scrubbed.t}/${scrubbed.dur}`)
 
+/*
+ * The playhead sits where the played bar ends, at every position.
+ *
+ * Both are drawn by the same loop from the same ratio, but they are drawn to
+ * different elements by different means - the bar with scaleX on the track,
+ * the playhead with translateX on a layer stretched across it. That layer is
+ * why the check exists: the position is no longer a percentage of the thing it
+ * appears to sit on, so anything that changes the layer's box - a padding on
+ * .xp-seek, an inset, a width that stops matching the track - moves the dot
+ * away from the bar without breaking either of them on its own. Nothing else
+ * here would notice, because seeking would still work and the bar would still
+ * paint.
+ *
+ * Measured against the played bar rather than against an expected pixel, so it
+ * stays true at any player width.
+ */
+const playheadDrift = await page.evaluate(async (sel) => {
+  const root = document.querySelector(sel)
+  const video = root.querySelector('video.xp-video')
+  const worst = []
+  for (const ratio of [0, 0.25, 0.5, 0.75, 1]) {
+    await new Promise((done) => {
+      video.addEventListener('seeked', done, { once: true })
+      video.currentTime = video.duration * ratio
+    })
+    await new Promise((done) => setTimeout(done, 200))
+    const seek = root.querySelector('.xp-seek').getBoundingClientRect()
+    const played = root.querySelector('.xp-seek-played').getBoundingClientRect()
+    const handle = root.querySelector('.xp-seek-handle').getBoundingClientRect()
+    worst.push({ ratio, off: +(handle.left - played.right).toFixed(1), width: Math.round(seek.width) })
+  }
+  return worst
+}, '[data-case="ladder"]')
+check(
+  'the playhead lands where the played bar ends, at every position',
+  playheadDrift.every((p) => Math.abs(p.off) <= 1),
+  playheadDrift.map((p) => `${p.ratio}:${p.off}px`).join(' '),
+)
+
 /* ------------------------------------------------------- frame preview */
 
 /*

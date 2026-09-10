@@ -2,7 +2,7 @@ import { useEffect, useMemo, useRef, useState } from 'react'
 import type { CSSProperties } from 'react'
 import type { XPlayerApi, XPlayerAudioTrack, XPlayerProps, XPlayerSource, XPlayerTrack } from './types'
 import { usePlayerState } from './hooks/usePlayerState'
-import { useProgressPaint, type SeekRefs } from './hooks/useProgressPaint'
+import { useProgressLoop, useProgressPaint, type SeekRefs } from './hooks/useProgressPaint'
 import { useMediaEvents } from './hooks/useMediaEvents'
 import { useVideoEngine, isHlsSource } from './hooks/useVideoEngine'
 import { useFramePreview } from './hooks/useFramePreview'
@@ -97,7 +97,6 @@ export function XPlayer({
     refs: seekRefs,
     timeLabelRef,
     seekingRef,
-    playing: state.playing,
   })
 
   const playback = useMediaEvents({
@@ -163,6 +162,9 @@ export function XPlayer({
     state.playing,
     locked,
   )
+
+  /* Nothing to draw behind hidden controls, so the loop does not run there. */
+  useProgressLoop(paint, state.playing && controlsVisible)
 
   useFocusRecovery(containerRef)
 
