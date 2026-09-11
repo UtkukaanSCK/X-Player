@@ -163,8 +163,14 @@ export function XPlayer({
     locked,
   )
 
-  /* Nothing to draw behind hidden controls, so the loop does not run there. */
-  useProgressLoop(paint, state.playing && controlsVisible)
+  /*
+   * Every frame while the controls are up; once a second while they are not,
+   * because the seek bar stays in the accessibility tree after it fades.
+   */
+  useProgressLoop(paint, {
+    everyFrame: state.playing && controlsVisible,
+    everySecond: state.playing,
+  })
 
   useFocusRecovery(containerRef)
 

@@ -124,32 +124,58 @@ export function useProgressPaint({ videoRef, refs, timeLabelRef, seekingRef }: O
 }
 
 /**
- * Runs the paint loop, and only while there is something to look at.
+ * Runs the painter at the rate the situation deserves: every frame while the
+ * controls are up, once a second while they are not.
  *
  * The loop used to be driven by `playing` alone, which meant the playhead was
  * redrawn sixty times a second behind hidden controls - the ordinary state of
  * a player someone is actually watching. Nothing about that is visible, and on
  * a weak device it is main-thread work taken from decoding.
  *
+ * Stopping outright was wrong, though, and the second rate is why. Hiding the
+ * controls is `opacity: 0`, which leaves the seek bar in the accessibility
+ * tree, so a loop that stops also stops the value a screen reader can still
+ * read: measured at 2.9 seconds of drift, with the slider announcing "2
+ * seconds" against a video at 4.9. Anything that focuses the bar shows the
+ * controls and corrects it, so this only ever reached a reader browsing the
+ * page without focusing - which is exactly the case least able to notice that
+ * what it is being told is stale.
+ *
+ * A whole `paint()` at 1 Hz rather than a special path for the spoken sinks:
+ * drawRatio already guards every sink on a change of its own - the position on
+ * the rounded ratio, the ARIA pair and the clock on the whole second - so the
+ * slow tick writes precisely what has moved, plus one composited transform a
+ * second. That costs about ten style recalculations in ten seconds against the
+ * 1482 the frame loop was doing, and no layout at all.
+ *
  * It lives out here rather than inside useProgressPaint because visibility is
  * not known that early: it depends on whether a menu is open, which depends on
  * state built further down the component. Keeping the loop separate lets the
  * caller start it at the point both facts exist.
  *
- * `paint()` runs once on every change of `running`, so the bar is correct at
- * the moment the loop stops and again as it restarts, rather than showing a
+ * `paint()` runs once on every change of rate, so the bar is correct at the
+ * moment the frame loop stops and again as it restarts, rather than showing a
  * position it held whenever the controls last went away.
  */
-export function useProgressLoop(paint: () => void, running: boolean) {
+export function useProgressLoop(
+  paint: () => void,
+  { everyFrame, everySecond }: { everyFrame: boolean; everySecond: boolean },
+) {
   useEffect(() => {
     paint()
-    if (!running) return
-    let frame = 0
-    const tick = () => {
-      paint()
+
+    if (everyFrame) {
+      let frame = 0
+      const tick = () => {
+        paint()
+        frame = requestAnimationFrame(tick)
+      }
       frame = requestAnimationFrame(tick)
+      return () => cancelAnimationFrame(frame)
     }
-    frame = requestAnimationFrame(tick)
-    return () => cancelAnimationFrame(frame)
-  }, [paint, running])
+
+    if (!everySecond) return
+    const slow = setInterval(paint, 1000)
+    return () => clearInterval(slow)
+  }, [paint, everyFrame, everySecond])
 }

@@ -162,6 +162,74 @@ check(
   playheadDrift.map((p) => `${p.ratio}:${p.off}px`).join(' '),
 )
 
+/*
+ * The slider keeps telling the truth after the controls fade.
+ *
+ * Hiding the controls is `opacity: 0`, so the seek bar stays in the
+ * accessibility tree with a live role="slider" and a value a screen reader can
+ * read at any time. The painter stops running every frame once the controls go
+ * - deliberately, it is sixty writes a second nobody can see - and stopping it
+ * outright also froze aria-valuenow: measured at 2.9 seconds of drift, the
+ * slider announcing "2 seconds" over a video at 4.9.
+ *
+ * The gap only ever reached a reader browsing the page without focusing the
+ * bar, because focusing it shows the controls and corrects the value on the
+ * way in. That is what made it worth a check rather than a shrug: the one
+ * caller who could be told something stale is the one with no way to see that
+ * it was.
+ *
+ * Its own page, played and then left alone, because every other check here
+ * keeps the pointer busy and the controls up - which is exactly the state this
+ * does not test. The suite passed the regression that introduced this.
+ */
+const ariaPage = await browser.newPage({ viewport: { width: 1200, height: 800 } })
+await ariaPage.goto(BASE, { waitUntil: 'networkidle' })
+await ariaPage.locator('#ladder').scrollIntoViewIfNeeded()
+await ariaPage.waitForTimeout(1200)
+await ariaPage.evaluate((sel) => {
+  const video = document.querySelector(`${sel} video.xp-video`)
+  video.muted = true
+  video.loop = true
+  return video.play().catch(() => {})
+}, '[data-case="ladder"]')
+/* Out of the player, so the controls time out the way they would for a viewer. */
+await ariaPage.mouse.move(5, 5)
+await ariaPage.waitForFunction(
+  (sel) => !document.querySelector(`${sel} .xp-root`).classList.contains('xp-show'),
+  '[data-case="ladder"]',
+  { timeout: 15_000 },
+)
+/* Long enough that a frozen value is unmistakable: the bug drifted by the wait. */
+await ariaPage.waitForTimeout(6000)
+const spoken = await ariaPage.evaluate((sel) => {
+  const root = document.querySelector(`${sel} .xp-root`)
+  const video = root.querySelector('video.xp-video')
+  const slider = root.querySelector('.xp-seek')
+  return {
+    hidden: !root.classList.contains('xp-show'),
+    playing: !video.paused,
+    drift: +(video.currentTime - Number(slider.getAttribute('aria-valuenow'))).toFixed(1),
+    text: slider.getAttribute('aria-valuetext'),
+  }
+}, '[data-case="ladder"]')
+check(
+  'the bar is genuinely hidden and playing while this is measured',
+  spoken.hidden && spoken.playing,
+  JSON.stringify(spoken),
+)
+/*
+ * Two seconds, not one. The slow tick is 1 Hz and drawRatio floors the second
+ * on purpose - the visible clock floors, and rounding the spoken value on top
+ * of that made the number say 1 while the words beside it said "0 seconds".
+ * So a second of lag is the design; six would be the bug.
+ */
+check(
+  'the spoken position keeps up while the controls are hidden',
+  spoken.drift <= 2,
+  `${spoken.drift}s behind, reading "${spoken.text}"`,
+)
+await ariaPage.close()
+
 /* ------------------------------------------------------- frame preview */
 
 /*
