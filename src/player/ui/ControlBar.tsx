@@ -161,23 +161,28 @@ export function ControlBar(props: Props) {
             />
           </div>
 
-          {/* Given the quality and sound props as well: it shows rows for both
-              at exactly the widths where the bar above has dropped their
-              buttons, so nothing the bar sheds becomes unreachable. */}
+          {/* Given the quality, sound and picture-in-picture props as well: it
+              shows rows for them at exactly the widths where the bar above has
+              dropped their buttons, so nothing the bar sheds becomes
+              unreachable. */}
           <SettingsMenu
             state={state}
             audioTracks={props.audioTracks}
             activeAudioTrack={props.activeAudioTrack}
             sources={props.sources}
+            pipSupported={props.pipSupported}
             onRate={props.onRate}
             onTextTrack={props.onTextTrack}
             onAudioTrack={props.onAudioTrack}
             onLevel={props.onLevel}
             onSource={props.onSource}
             onToggleMute={props.onToggleMute}
+            onTogglePip={props.onTogglePip}
             onOpenChange={props.onMenuOpenChange}
           />
 
+          {/* First to go with the skip buttons, and unlike them it has no
+              gesture standing in for it, so it moves to the settings menu. */}
           {props.pipSupported && (
             <button
               type="button"

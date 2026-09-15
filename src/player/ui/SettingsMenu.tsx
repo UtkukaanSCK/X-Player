@@ -12,16 +12,18 @@ interface Props {
   audioTracks: XPlayerAudioTrack[]
   activeAudioTrack: number
   sources: XPlayerSource[]
+  pipSupported: boolean
   onRate: (rate: number) => void
   onTextTrack: (index: number) => void
   onAudioTrack: (id: number) => void
   onLevel: (level: number) => void
   onSource: (index: number) => void
   onToggleMute: () => void
+  onTogglePip: () => void
   onOpenChange: (open: boolean) => void
 }
 
-type Panel = 'main' | 'speed' | 'subtitles' | 'audio' | 'quality' | 'sound'
+type Panel = 'main' | 'speed' | 'subtitles' | 'audio' | 'quality' | 'sound' | 'pip'
 
 const PANEL_TITLE: Record<Exclude<Panel, 'main'>, string> = {
   speed: 'Playback speed',
@@ -29,6 +31,7 @@ const PANEL_TITLE: Record<Exclude<Panel, 'main'>, string> = {
   audio: 'Audio track',
   quality: 'Quality',
   sound: 'Sound',
+  pip: 'Picture in picture',
 }
 
 const rateLabel = (rate: number) => (rate === 1 ? 'Normal' : `${rate}x`)
@@ -41,9 +44,10 @@ const rateLabel = (rate: number) => (rate === 1 ? 'Normal' : `${rate}x`)
  * for when playback is struggling, and burying it two clicks deep means it may
  * as well not exist. But a narrow player cannot hold that button, and hiding a
  * control with nowhere to go is not a tier - it is a control the viewer can no
- * longer reach. So quality and sound come back here at exactly the widths where
- * they leave the bar, marked with data-xp-from, which mirrors the bar's
- * data-xp-until. Each control is in one place at any width and never in both.
+ * longer reach. So quality, sound and picture in picture come back here at
+ * exactly the widths where they leave the bar, marked with data-xp-from, which
+ * mirrors the bar's data-xp-until. Each control is in one place at any width
+ * and never in both.
  *
  * The audio row only appears when there is genuinely more than one track. A
  * menu entry that always says "Track 1" teaches people to ignore the menu.
@@ -53,12 +57,14 @@ export function SettingsMenu({
   audioTracks,
   activeAudioTrack,
   sources,
+  pipSupported,
   onRate,
   onTextTrack,
   onAudioTrack,
   onLevel,
   onSource,
   onToggleMute,
+  onTogglePip,
   onOpenChange,
 }: Props) {
   const { open, setOpen, wrapRef, buttonRef } = useMenu(onOpenChange)
@@ -112,7 +118,7 @@ export function SettingsMenu({
                 <Row label="Audio track" value={audioLabel} onOpen={() => setPanel('audio')} />
               )}
 
-              {/* Both appear only at the width where the bar drops them, which
+              {/* Each appears only at the width where the bar drops it, which
                   is what data-xp-from means. The wrapper is display: contents,
                   so the row it holds is still a direct flex item of the panel
                   and nothing about the layout changes when it is present. */}
@@ -132,6 +138,15 @@ export function SettingsMenu({
                   onOpen={() => setPanel('sound')}
                 />
               </div>
+              {pipSupported && (
+                <div data-xp-from="roomy">
+                  <Row
+                    label="Picture in picture"
+                    value={state.pip ? 'On' : 'Off'}
+                    onOpen={() => setPanel('pip')}
+                  />
+                </div>
+              )}
             </div>
           )}
 
@@ -218,6 +233,28 @@ export function SettingsMenu({
                     label="Muted"
                     onSelect={choose(() => {
                       if (!state.muted) onToggleMute()
+                    })}
+                  />
+                </>
+              )}
+
+              {/* The same shape as sound, for the same reason. The toggle runs
+                  inside the click that chose it, which matters here: a browser
+                  only opens picture in picture from a user gesture. */}
+              {panel === 'pip' && (
+                <>
+                  <Option
+                    checked={state.pip}
+                    label="On"
+                    onSelect={choose(() => {
+                      if (!state.pip) onTogglePip()
+                    })}
+                  />
+                  <Option
+                    checked={!state.pip}
+                    label="Off"
+                    onSelect={choose(() => {
+                      if (state.pip) onTogglePip()
                     })}
                   />
                 </>

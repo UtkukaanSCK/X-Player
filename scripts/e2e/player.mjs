@@ -616,13 +616,23 @@ await page.evaluate((sel) => {
   v.pause()
 }, LADDER)
 
+/*
+ * Picture in picture renders only where the browser offers it. The browser
+ * this suite runs in does, and the check says so: if one without it ever runs
+ * the suite, the failure names that reason instead of passing by never looking
+ * or reporting a missing control as a layout bug.
+ */
+const pipOffered = await page.evaluate(() => document.pictureInPictureEnabled === true)
+check('picture in picture is offered here, so its home is checked too', pipOffered, String(pipOffered))
+
 const ON_BAR = {
   play: /^(Play|Pause|Replay)$/,
   sound: /^(Mute|Unmute)$/,
   quality: /^Quality/,
   fullscreen: /^(Full screen|Exit full screen)$/,
+  ...(pipOffered && { pip: /^Picture in picture$/ }),
 }
-const IN_MENU = { sound: /Sound/, quality: /Quality/ }
+const IN_MENU = { sound: /Sound/, quality: /Quality/, pip: /Picture in picture/ }
 
 const homeless = []
 const doubled = []
@@ -938,18 +948,21 @@ await menuPhone.close()
  * the button underneath it is the way out.
  */
 /*
- * Quality and sound live on the bar on a wide player and as settings rows on a
- * narrow one, and the two visibilities are meant to be exact mirrors:
- * data-xp-until on the bar, data-xp-from in the menu, naming the same tier.
+ * Quality, sound and picture in picture live on the bar on a wide player and
+ * as settings rows on a narrow one, and the two visibilities are meant to be
+ * exact mirrors: data-xp-until on the bar, data-xp-from in the menu, naming the
+ * same tier.
  *
  * "Shown only when the other is hidden" is the kind of condition that is right
  * at the widths you happened to try and wrong at a boundary you did not, so
- * these are the boundaries themselves - one pixel either side of 300 and 220 -
- * rather than round numbers in the middle of each tier.
+ * these are the boundaries themselves - one pixel either side of 560, 300 and
+ * 220 - rather than round numbers in the middle of each tier. A player wider
+ * than the phone's screen is measured on a desktop page instead, so the menu
+ * button is somewhere a click can reach.
  */
 const mirrorFails = []
-for (const w of [301, 300, 221, 220]) {
-  const m = await browser.newPage({ ...devices['iPhone 13'] })
+for (const w of [561, 560, 301, 300, 221, 220]) {
+  const m = await browser.newPage(w > 390 ? { viewport: { width: 1200, height: 900 } } : { ...devices['iPhone 13'] })
   await m.goto(BASE, { waitUntil: 'networkidle' })
   await m.waitForTimeout(1200)
   await m.locator('#ladder').scrollIntoViewIfNeeded()
@@ -972,25 +985,36 @@ for (const w of [301, 300, 221, 220]) {
   await m.locator('[data-case="ladder"] .xp-root').hover()
   await m.locator('[data-case="ladder"] .xp-settings .xp-btn').click()
   await m.waitForTimeout(350)
-  const where = await m.evaluate(() => {
+  const { menuOpen, pipHere, ...where } = await m.evaluate(() => {
     const root = document.querySelector('[data-case="ladder"] .xp-root')
     const vis = (el) => !!el && el.getBoundingClientRect().width > 0
     const row = (name) =>
       [...root.querySelectorAll('.xp-menu-item')].find((x) => x.textContent.trim().startsWith(name))
     return {
+      menuOpen: vis(row('Playback speed')),
+      pipHere: document.pictureInPictureEnabled === true,
       quality: [vis(root.querySelector('.xp-quality .xp-btn')), vis(row('Quality'))],
       sound: [vis(root.querySelector('.xp-volume .xp-btn')), vis(row('Sound'))],
+      pip: [vis(root.querySelector('.xp-bar [aria-label="Picture in picture"]')), vis(row('Picture in picture'))],
     }
   })
+  /*
+   * A menu that never opened has no rows, which is also the right answer on the
+   * wide side of every boundary - so without this, a click that missed would
+   * pass every one of those widths. Picture in picture is left out where the
+   * browser does not offer it, rather than reported as a control with no home.
+   */
+  if (!menuOpen) mirrorFails.push(`the settings menu did not open at ${w}px`)
+  if (!pipHere) delete where.pip
   for (const [name, [onBar, inMenu]] of Object.entries(where)) {
     if (onBar === inMenu) mirrorFails.push(`${name} at ${w}px: bar=${onBar} menu=${inMenu}`)
   }
   await m.close()
 }
 check(
-  'quality and sound are in exactly one place at every tier boundary',
+  'quality, sound and picture in picture are in exactly one place at every tier boundary',
   mirrorFails.length === 0,
-  mirrorFails.join('; ') || 'both mirrored either side of 300px and 220px',
+  mirrorFails.join('; ') || 'all three mirrored either side of 560px, 300px and 220px',
 )
 
 const fresh = await browser.newPage({ ...devices['iPhone 13'] })

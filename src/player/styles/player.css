@@ -1122,14 +1122,20 @@
  * The mirror of data-xp-until.
  *
  * A settings row marked data-xp-from is hidden until the tier where the bar
- * drops the control it stands in for, so quality and sound are on the bar or
- * in the menu but never in both and never in neither. The two attributes have
- * to name the same tier for a control, and the pairs are:
+ * drops the control it stands in for, so quality, sound and picture in picture
+ * are on the bar or in the menu but never in both and never in neither. The two
+ * attributes have to name the same tier for a control, and the pairs are:
+ *   pip      bar until 'roomy'    menu from 'roomy'
  *   quality  bar until 'tight'    menu from 'tight'
  *   sound    bar until 'minimal'  menu from 'minimal'
  */
 [data-xp-from] {
   display: none;
+}
+@container xp (max-width: 560px) {
+  [data-xp-from='roomy'] {
+    display: contents;
+  }
 }
 @container xp (max-width: 300px) {
   [data-xp-from='tight'] {
