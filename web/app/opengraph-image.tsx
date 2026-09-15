@@ -1,3 +1,5 @@
+import { readFile } from 'node:fs/promises'
+import { join } from 'node:path'
 import { ImageResponse } from 'next/og'
 
 import { SITE_NAME } from '@/lib/site'
@@ -16,11 +18,25 @@ export const alt = 'X-Player — a plain video element and X-Player on the same 
 export const size = { width: 1200, height: 630 }
 export const contentType = 'image/png'
 
-const AMBER = '#ffb020'
-const PAPER = '#f2f0eb'
-const MUTED = '#8d8f96'
-const LINE = '#26282d'
-const PANEL = '#131417'
+const MARK = '#ffb020'
+const INK = '#17171a'
+const MUTED = '#5e5e66'
+const LINE = '#e4e4e7'
+const PANEL = '#f5f5f6'
+
+/*
+ * The page's own typeface, read from the repository at build time.
+ *
+ * Without it Satori falls back to a face of its own, which did not match the
+ * page, ignored the bold weight, and measured "rather" wide enough to leave a
+ * gap before "than" that no layout change could close. next/font's files are
+ * WOFF2, which Satori cannot read, so these are the static TrueType cuts from
+ * Google Fonts, kept with their licence in assets/fonts.
+ */
+const [regular, bold] = await Promise.all([
+  readFile(join(process.cwd(), 'assets/fonts/Archivo-Regular.ttf')),
+  readFile(join(process.cwd(), 'assets/fonts/Archivo-Bold.ttf')),
+])
 
 export default function OpengraphImage() {
   return new ImageResponse(
@@ -32,11 +48,12 @@ export default function OpengraphImage() {
           display: 'flex',
           flexDirection: 'column',
           justifyContent: 'space-between',
-          background: '#0b0b0d',
-          padding: 64,
+          background: '#ffffff',
+          padding: 72,
+          fontFamily: 'Archivo',
         }}
       >
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
           {/*
             Two crossed bars rather than the ✕ character. Satori has to fetch a
             font for any glyph it meets, and the fetch for that one failed at
@@ -45,11 +62,10 @@ export default function OpengraphImage() {
           */}
           <div
             style={{
-              width: 38,
-              height: 38,
-              borderRadius: 9,
-              background: PANEL,
-              border: `1px solid ${LINE}`,
+              width: 44,
+              height: 44,
+              borderRadius: 11,
+              background: INK,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -59,63 +75,73 @@ export default function OpengraphImage() {
             <div
               style={{
                 position: 'absolute',
-                width: 20,
-                height: 3.5,
-                borderRadius: 2,
-                background: AMBER,
+                width: 22,
+                height: 4.5,
+                borderRadius: 3,
+                background: MARK,
                 transform: 'rotate(45deg)',
               }}
             />
             <div
               style={{
                 position: 'absolute',
-                width: 20,
-                height: 3.5,
-                borderRadius: 2,
-                background: AMBER,
+                width: 22,
+                height: 4.5,
+                borderRadius: 3,
+                background: MARK,
                 transform: 'rotate(-45deg)',
               }}
             />
           </div>
-          <div style={{ color: PAPER, fontSize: 26, fontWeight: 600, letterSpacing: -0.4 }}>{SITE_NAME}</div>
+          <div style={{ color: INK, fontSize: 28, fontWeight: 700, letterSpacing: -0.3 }}>{SITE_NAME}</div>
         </div>
 
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-          <div style={{ color: PAPER, fontSize: 78, fontWeight: 700, letterSpacing: -2.6, lineHeight: 1.02 }}>
-            A bad connection,
-          </div>
-          <div style={{ color: MUTED, fontSize: 78, fontWeight: 700, letterSpacing: -2.6, lineHeight: 1.02 }}>
-            shown rather than described.
-          </div>
+        {/* Two lines set by hand, in one colour, as the page's heading wraps at this width. */}
+        <div
+          style={{
+            display: 'flex',
+            flexDirection: 'column',
+            color: INK,
+            fontSize: 76,
+            fontWeight: 700,
+            letterSpacing: -2,
+            lineHeight: 1.05,
+          }}
+        >
+          <div>A bad connection,</div>
+          <div>shown rather than described.</div>
         </div>
 
         {/* Two panels, because the page is a comparison and the card should say so. */}
         <div style={{ display: 'flex', gap: 16 }}>
-          {[
-            { name: 'A plain <video>', tone: MUTED },
-            { name: 'X-Player', tone: AMBER },
-          ].map((panel) => (
+          {['A plain <video>', 'X-Player'].map((name) => (
             <div
-              key={panel.name}
+              key={name}
               style={{
                 flex: 1,
                 display: 'flex',
                 justifyContent: 'space-between',
-                padding: '16px 20px',
-                borderRadius: 10,
+                padding: '18px 22px',
+                borderRadius: 12,
                 background: PANEL,
                 border: `1px solid ${LINE}`,
-                color: panel.tone,
+                color: INK,
                 fontSize: 22,
               }}
             >
-              <span>{panel.name}</span>
+              <span>{name}</span>
               <span style={{ color: MUTED }}>stalled</span>
             </div>
           ))}
         </div>
       </div>
     ),
-    size,
+    {
+      ...size,
+      fonts: [
+        { name: 'Archivo', data: regular, style: 'normal', weight: 400 },
+        { name: 'Archivo', data: bold, style: 'normal', weight: 700 },
+      ],
+    },
   )
 }
