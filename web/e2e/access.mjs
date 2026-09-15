@@ -241,10 +241,12 @@ for (const width of [390, 768, 1024, 1440]) {
 /*
  * WCAG 2.2's 2.5.8, checked at the width where it bites.
  *
- * The player's own controls are excluded, not forgiven: they are 36px and they
- * belong to the library in src/player, which is a different tree with its own
- * tests. What this asserts is that nothing the site itself puts under a thumb
- * is too small for one.
+ * The player's own controls are excluded, not forgiven: they belong to the
+ * library in src/player, which has its own tests. scripts/e2e/player.mjs holds
+ * every bar button to 44px under a coarse pointer; the seek bar is 32px there
+ * by design, and the settings menu's rows are not measured anywhere. What this
+ * asserts is that nothing the site itself puts under a thumb is too small for
+ * one.
  */
 await page.setViewportSize({ width: 390, height: 844 })
 /* At the top of the page, which is the worst case: the comparison stage rests

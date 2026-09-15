@@ -17,7 +17,6 @@
   than broken. Clicking the picture to start the video left focus in the right
   place, so it depended on how you had started watching.
 - Fixed: clicking the picture to play left the controls on screen for good.
-
 - The player does far less while it plays. The seek bar was rewriting
   `aria-valuenow` and `aria-valuetext` sixty times a second for a value that
   changes once, telling assistive technology the slider had moved when it had
@@ -37,8 +36,8 @@
   playing, one click from the list. It covers HLS renditions and, through the new
   `sources` prop, several files of the same video. Subtitles and the chosen
   language survive a switch.
-- The landing site moved to its own project. This repository is the player.
-  `npm run dev` opens a development harness in `src/dev` instead.
+- `npm run dev` opens a development harness in `src/dev`. The landing site is
+  built separately, from `web/`.
 - Audio tracks can be offered in the settings menu through `audioTracks`,
   `activeAudioTrack` and `onAudioTrack`. Controlled by the host: a file has to be
   demuxed to know a second language is in it, which is not the player's job. When

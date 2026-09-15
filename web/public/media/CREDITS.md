@@ -58,6 +58,24 @@ rate at 132 kbps means the extra keyframes come out of quality instead of size -
 SSIM against the master falls from 0.972 to 0.961 - so the sustained rate, the
 figure the page prints and both throttle ratios all stay exactly where they were.
 
+## How the encodes were made
+
+Both were cut from the archive.org master named above, which is not kept in this
+repository. `demo-long.mp4` came from this command, recovered from the session
+that produced it. Run again, it gives a file within 3 kB of the committed one at
+the same SSIM against the master, 0.9819:
+
+    ffmpeg -ss 105 -t 120 -i bbb.mp4 -c:v libx264 -profile:v main -preset slow \
+      -b:v 335k -maxrate 420k -bufsize 840k -g 96 -keyint_min 96 -sc_threshold 0 \
+      -c:a aac -b:a 64k -movflags +faststart demo-long.mp4
+
+The command for `demo-480.mp4` was not kept. The x264 header inside the file
+records the same recipe at 480x270: `rc=abr bitrate=132 vbv_maxrate=165
+vbv_bufsize=330`, `keyint=96 scenecut=0`, the `-preset slow` settings, and 64
+kbps AAC. The scaler that took it to 480x270 is not recorded, so a rebuild from
+those settings will not be byte-identical. Put the command for the next encode
+here.
+
 `demo-en.vtt`, `demo-tr.vtt` are written for this project and carry the same
 license as the rest of the repository (MIT). They describe the player, not the
 film, and are not a transcript of anything.

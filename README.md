@@ -197,14 +197,16 @@ both of the faults it once had pinned in place.
 
 ### Projects built on this one
 
-Two things consume this library and live in their own projects, so the
-repository stays a library:
+Two things consume this library:
 
-- **The landing site**, which demonstrates all of the above.
-- **X-Player Desktop**, an Electron app that plays any file on disk - MKV, AVI,
-  HEVC, DTS and the rest - by putting an ffmpeg gateway behind the same player.
-  It adds no playback engine of its own: the gateway turns every file into
-  either a plain MP4 or an HLS stream, both of which the player already knows.
+- **The landing site**, in `web/`, which demonstrates all of the above. It is
+  built and published from this repository, against the compiled library in
+  `dist/` rather than the source.
+- **X-Player Desktop**, in its own project: an Electron app that plays any file
+  on disk - MKV, AVI, HEVC, DTS and the rest - by putting an ffmpeg gateway
+  behind the same player. It adds no playback engine of its own: the gateway
+  turns every file into either a plain MP4 or an HLS stream, both of which the
+  player already knows.
 
 Both consume X-Player the way anyone else would.
 
