@@ -719,6 +719,36 @@ check(
   brokenMenu.length + ' widths: ' + brokenMenu.slice(0, 4).join(', '),
 )
 
+/* ---------------------------------------------------- the bar's own height */
+
+/*
+ * The tiers shrink the bar as well as emptying it: 52px, then 46px from 560px
+ * down, then 44px from 220px down. The blocking layer, the resume card and the
+ * menu's height cap all measure themselves from that value.
+ *
+ * A container query cannot style its own container, only what is inside it.
+ * When the tiers moved from viewport media queries to container queries the
+ * value stayed on the root, so every narrow player kept the 52px bar - a check
+ * of which buttons were visible could never have noticed, because the buttons
+ * were all correct and only the strip around them was wrong.
+ */
+const wrongBar = []
+for (const [width, want] of [[600, 52], [561, 52], [560, 46], [301, 46], [221, 46], [220, 44], [160, 44]]) {
+  await page.evaluate(
+    ([sel, w]) => {
+      document.querySelector(sel + ' .xp-root').parentElement.style.width = w + 'px'
+    },
+    [LADDER, width],
+  )
+  await page.waitForTimeout(120)
+  const got = await page.evaluate(
+    (sel) => document.querySelector(sel + ' .xp-bar').getBoundingClientRect().height,
+    LADDER,
+  )
+  if (Math.abs(got - want) > 0.5) wrongBar.push(`${width}px ${got}px, want ${want}px`)
+}
+check('the bar gets shorter with the tiers', wrongBar.length === 0, wrongBar.join('; ') || '52, 46 and 44 where they belong')
+
 check('no uncaught page errors', pageErrors.length === 0, pageErrors.join(' | '))
 await page.close()
 

@@ -1163,9 +1163,19 @@
  */
 
 @container xp (max-width: 560px) {
-  .xp-root {
+  /*
+   * On the root's children, not the root. A container query styles what is
+   * inside its container and never the container itself, so while this sat on
+   * `.xp-root` it did nothing, and every narrow player kept the 52px bar. From
+   * the children the value is inherited by everything that measures from it:
+   * the bar, the menu's height cap, the resume card and the blocking layer.
+   *
+   * The 10px corner radius that sat beside it is gone rather than moved. The
+   * corners are the root's, and no rule in a query on the root's own size can
+   * reach the root, so a narrow player keeps --xp-radius.
+   */
+  .xp-root > * {
     --xp-bar-h: 46px;
-    border-radius: 10px;
   }
   /* The gradient run-up is drawn for a player several times taller. */
   .xp-controls {
@@ -1250,7 +1260,8 @@
 }
 
 @container xp (max-width: 220px) {
-  .xp-root {
+  /* On the children for the same reason as the 560px tier above. */
+  .xp-root > * {
     --xp-bar-h: 44px;
   }
   .xp-controls {
