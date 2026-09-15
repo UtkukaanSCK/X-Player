@@ -1017,6 +1017,55 @@ check(
   mirrorFails.join('; ') || 'all three mirrored either side of 560px, 300px and 220px',
 )
 
+/*
+ * Picture in picture is one window for the whole page, and "On" in a player's
+ * menu is a promise about that player. The toggle used to ask the page whether
+ * anything was in picture in picture, so with another player already there,
+ * choosing On closed that window and opened nothing.
+ */
+const pipPage = await browser.newPage({ viewport: { width: 1440, height: 1000 } })
+let pipOwners = []
+try {
+  await pipPage.goto(BASE, { waitUntil: 'domcontentloaded' })
+  await pipPage.waitForFunction(
+    () => ['ladder', 'single'].every((c) => document.querySelector(`[data-case="${c}"] video.xp-video`)?.readyState >= 1),
+    null,
+    { timeout: 30000 },
+  )
+  const owner = () =>
+    pipPage.evaluate(() => document.pictureInPictureElement?.closest('[data-case]')?.getAttribute('data-case') ?? null)
+  await pipPage.evaluate(() => {
+    document.querySelector('[data-case="ladder"]').style.width = '600px'
+    document.querySelector('[data-case="single"]').style.width = '400px'
+  })
+  const second = pipPage.locator('[data-case="single"] .xp-root')
+
+  const first = pipPage.locator('[data-case="ladder"] .xp-root')
+  await first.scrollIntoViewIfNeeded()
+  await first.hover()
+  await pipPage.locator('[data-case="ladder"] .xp-bar [aria-label="Picture in picture"]').click()
+  await pipPage.waitForFunction(() => !!document.pictureInPictureElement, null, { timeout: 5000 }).catch(() => {})
+  pipOwners.push(await owner())
+
+  await second.scrollIntoViewIfNeeded()
+  await second.hover()
+  await pipPage.locator('[data-case="single"] .xp-settings .xp-btn').click()
+  await pipPage.locator('[data-case="single"] .xp-menu-item', { hasText: 'Picture in picture' }).click({ timeout: 5000 })
+  await pipPage.locator('[data-case="single"] [role="menuitemradio"]', { hasText: /^On$/ }).click({ timeout: 5000 })
+  await pipPage
+    .waitForFunction(() => !!document.pictureInPictureElement?.closest('[data-case="single"]'), null, { timeout: 3000 })
+    .catch(() => {})
+  pipOwners.push(await owner())
+} catch (err) {
+  pipOwners.push('error: ' + String(err.message).split('\n')[0])
+}
+check(
+  "choosing On in one player's menu takes picture in picture from another",
+  pipOwners[0] === 'ladder' && pipOwners[1] === 'single',
+  'owner after each step: ' + pipOwners.join(' -> '),
+)
+await pipPage.close()
+
 const fresh = await browser.newPage({ ...devices['iPhone 13'] })
 await fresh.goto(BASE, { waitUntil: 'networkidle' })
 await fresh.waitForTimeout(1500)

@@ -239,7 +239,11 @@ export function usePlayerCommands({
   const togglePip = useCallback(() => {
     const video = videoRef.current
     if (!video || !pipSupported) return
-    if (document.pictureInPictureElement) void document.exitPictureInPicture().catch(() => {})
+    // Asked of this player's own video, not of the page. Picture in picture is
+    // one window per page, so another player owning it is not this one being in
+    // it: asking the page closed that window and opened nothing here. Requesting
+    // it for this video moves the window instead.
+    if (document.pictureInPictureElement === video) void document.exitPictureInPicture().catch(() => {})
     else void video.requestPictureInPicture().catch(() => {})
   }, [videoRef, pipSupported])
 
