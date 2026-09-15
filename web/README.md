@@ -140,8 +140,8 @@ excerpt, looped to two minutes. Both decisions were forced:
 
 | Suite | What it proves |
 | --- | --- |
-| `proof` | The throttle bites, neither player is favoured, the plain video dies with nothing to press, X-Player explains itself and resumes, and the second section links to the repository |
-| `motion` | Scroll drives the connection and not just the visuals, nothing transforms under `prefers-reduced-motion`, and both typefaces load |
+| `proof` | The throttle bites, neither player is favoured, the printed rates match the files, both players pause off screen and resume, seeks recover, the pinned comparison fits its screen in both modes or stops pinning, and the second section links to the repository |
+| `motion` | Scrolling moves the stage but never changes the connection by itself, nothing transforms under `prefers-reduced-motion`, and both typefaces load |
 | `wizard` | The second branch subtracts, every offered file downloads and weighs what the page claims, and nothing is offered before a release exists |
 | `access` | The accessibility guarantees, measured on the rendered page rather than asserted |
 | `deploy` | Content types, cache behaviour, the link card, the canonical URL, a working 404, and the build's weight |
@@ -151,7 +151,8 @@ excerpt, looped to two minutes. Both decisions were forced:
 It is the suite that keeps the AA claim honest, so it computes rather than
 trusts. Contrast is taken from the colour the browser actually painted and the
 colour actually behind it, not from the token values — a token is only as good
-as the surface it lands on, and `bg-good/10` over `bg-panel` is neither.
+as the surface it lands on, and a translucent one - `bg-bad/5` under the
+unavailable alert - is no surface at all.
 
 The rest are the failures that a design review reads straight past:
 

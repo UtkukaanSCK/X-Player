@@ -427,6 +427,45 @@ for (const saveData of [true, false]) {
   await context.close()
 }
 
+/*
+ * The pinned comparison fits the screen it pins to, in both modes.
+ *
+ * The section holds itself to the viewport for a whole screen of scrolling and
+ * cuts off whatever does not fit. A column sized for one mode silently lost the
+ * other's last lines: at 1366x768 the Slow 2G verdict was cut in half while
+ * Normal fitted with room to spare, and nothing in this suite looked at Slow
+ * 2G's layout at all. Measured at rest and at the top of the section, where the
+ * stage has not settled and sits lower. Below the pinning height the section is
+ * meant to stop pinning, so there the check is that it did.
+ */
+for (const [width, height] of [[1366, 768], [1024, 768], [1366, 633]]) {
+  for (const reducedMotion of ['reduce', 'no-preference']) {
+    const context = await browser.newContext({ viewport: { width, height }, reducedMotion })
+    const fit = await context.newPage()
+    await fit.goto(BASE, { waitUntil: 'domcontentloaded' })
+    await fit.waitForSelector('#proof [role="radio"]', { timeout: 30_000 })
+    for (const label of ['Normal', 'Slow 2G']) {
+      await fit.locator('#proof [role="radio"]', { hasText: label }).click()
+      await fit.waitForTimeout(500)
+      const measured = await fit.evaluate(() => {
+        const box = document.querySelector('#proof > div')
+        const stage = document.querySelector('#proof [data-stage="proof"]')
+        return {
+          pinned: getComputedStyle(box).position === 'sticky',
+          spare: Math.round(box.getBoundingClientRect().bottom - stage.lastElementChild.getBoundingClientRect().bottom),
+        }
+      })
+      const where = `${width}x${height}, ${label}, ${reducedMotion === 'reduce' ? 'settled' : 'not yet settled'}`
+      if (height >= 740) {
+        check(`the pinned comparison fits the screen (${where})`, measured.pinned && measured.spare >= 0, `${measured.spare}px spare`)
+      } else {
+        check(`a screen too short to pin it scrolls instead (${where})`, !measured.pinned, measured.pinned ? `pinned, ${measured.spare}px spare` : 'not pinned')
+      }
+    }
+    await context.close()
+  }
+}
+
 check('no uncaught errors', pageErrors.length === 0, pageErrors.slice(0, 2).join(' | '))
 
 await browser.close()
