@@ -531,6 +531,68 @@ check(
   tooSmall.slice(0, 6).join(', '),
 )
 
+/* ---------------------------------------- a menu over the panels that block */
+
+/*
+ * A menu opened while a blocking panel is up takes its own clicks.
+ *
+ * The menu renders inside .xp-controls, at z-index 5, and both the resume
+ * offer (8) and the blocking centre layer (7) take pointer events above it. So
+ * the rows of an open menu that fell under either panel could not be clicked:
+ * reopen a file and go straight to the audio track, or open settings before
+ * the first play. The desktop app's playback suite stopped dead on exactly
+ * this, trying to pick a quality under the resume offer. The panels are
+ * injected as they are above; the menu is the real one, opened by a click.
+ */
+const menuBlocked = []
+let menuRowsSeen = 0
+const ladderWidth = await page.evaluate((sel) => document.querySelector(sel + ' .xp-root').parentElement.style.width, LADDER_CASE)
+for (const kind of ['resume', 'play']) {
+  await page.evaluate(
+    ([sel, which, resumeHtml]) => {
+      const root = document.querySelector(sel + ' .xp-root')
+      root.parentElement.style.width = '640px'
+      root.querySelectorAll('.xp-probe').forEach((n) => n.remove())
+      const panel = document.createElement('div')
+      panel.className = which === 'resume' ? 'xp-resume xp-probe' : 'xp-center xp-center-blocking xp-probe'
+      panel.innerHTML = which === 'resume' ? resumeHtml : '<span>blocking</span>'
+      root.appendChild(panel)
+    },
+    [LADDER_CASE, kind, RESUME_MARKUP],
+  )
+  await page.waitForTimeout(300)
+  await page.locator(LADDER_CASE + ' .xp-root').hover()
+  await page.locator(LADDER_CASE + ' .xp-settings .xp-btn').click()
+  await page.waitForTimeout(300)
+  const rows = await page.evaluate(
+    (sel) =>
+      [...document.querySelectorAll(sel + ' .xp-menu-item')]
+        .map((row) => {
+          const r = row.getBoundingClientRect()
+          // Rows for controls that live on the bar at this width are hidden.
+          if (r.width === 0 || r.height === 0) return null
+          const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+          return { name: row.textContent.trim(), ok: at === row || row.contains(at) }
+        })
+        .filter(Boolean),
+    LADDER_CASE,
+  )
+  menuRowsSeen += rows.length
+  for (const row of rows) if (!row.ok) menuBlocked.push(kind + ': ' + row.name)
+  await page.keyboard.press('Escape')
+  await page.waitForTimeout(200)
+}
+await page.evaluate(
+  ([sel, width]) => {
+    document.querySelectorAll(sel + ' .xp-probe').forEach((n) => n.remove())
+    document.querySelector(sel + ' .xp-root').parentElement.style.width = width
+  },
+  [LADDER_CASE, ladderWidth],
+)
+
+check('a settings menu was opened over each kind of blocking panel', menuRowsSeen > 0, menuRowsSeen + ' visible rows')
+check('and every visible row of it can be clicked', menuBlocked.length === 0, menuBlocked.slice(0, 6).join(', '))
+
 /* ------------------------------------------------- one home per control */
 
 /*

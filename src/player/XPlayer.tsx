@@ -239,7 +239,7 @@ export function XPlayer({
   return (
     <div
       ref={containerRef}
-      className={`xp-root${controlsVisible ? ' xp-show' : ''}${state.fullscreen ? ' xp-fullscreen' : ''}${className ? ` ${className}` : ''}`}
+      className={`xp-root${controlsVisible ? ' xp-show' : ''}${menuOpen ? ' xp-menu-open' : ''}${state.fullscreen ? ' xp-fullscreen' : ''}${className ? ` ${className}` : ''}`}
       style={containerStyle}
       tabIndex={0}
       role="region"

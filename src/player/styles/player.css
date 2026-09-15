@@ -602,6 +602,22 @@
   pointer-events: auto;
 }
 
+/*
+ * An open menu sits above the panels that block the picture.
+ *
+ * A menu renders inside the controls, and the controls are at z-index 5,
+ * under both the resume offer (8) and the blocking centre layer (7), which
+ * take pointer events so that they can always be answered. The lower rows of
+ * an open menu fell beneath them and could not be clicked: reopen a file and
+ * go straight to the audio track, or open settings before the first play.
+ * While a menu is open the viewer has asked for it, so the bar is lifted over
+ * both for exactly that long; the offer stays where it is, and can still be
+ * answered once the menu closes.
+ */
+.xp-root.xp-menu-open .xp-controls {
+  z-index: 9;
+}
+
 .xp-bar {
   display: flex;
   align-items: center;
