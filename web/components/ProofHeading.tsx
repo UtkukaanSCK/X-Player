@@ -14,14 +14,17 @@
  */
 export function ProofHeading() {
   return (
-    <header className="mx-auto w-full max-w-6xl">
+    <header className="proof-column">
       {/*
         No label above the heading, and no second colour inside it.
         The section is not a step in a sequence, so numbering it stated nothing
         true, and greying the back half of a sentence breaks one thought into
         two ranks for no reason a reader could name.
       */}
-      <h1 id="proof-heading" className="legend text-[length:var(--text-hero)] font-semibold leading-[1.02] text-balance">
+      <h1
+        id="proof-heading"
+        className="max-w-4xl text-[length:var(--text-hero)] font-semibold leading-[1.05] tracking-[-0.03em] text-balance text-ink"
+      >
         A bad connection, shown rather than described.
       </h1>
     </header>

@@ -6,17 +6,13 @@ import './globals.css'
 /*
  * Both faces are fetched at build time and served from this origin, so the page
  * has no third-party dependency at runtime and no flash of a fallback.
- */
-/*
- * Archivo carries a width axis, which is the point of choosing it.
  *
- * Equipment legends are set wide and tracked tight, and the section headings
- * here use that cut. A neutral grotesk would say nothing about what this page
- * is; a face that can widen on demand says panel.
+ * Archivo for everything a person reads. JetBrains Mono only where the text is
+ * something a machine would recognise too - file names, code, and the live
+ * numbers under the players, whose digits must not shift as they change.
  */
 const archivo = Archivo({
   subsets: ['latin'],
-  axes: ['wdth'],
   variable: '--font-archivo',
   display: 'swap',
 })
@@ -52,14 +48,14 @@ export const metadata: Metadata = {
 }
 
 export const viewport: Viewport = {
-  themeColor: '#0b0b0d',
-  colorScheme: 'dark',
+  themeColor: '#ffffff',
+  colorScheme: 'light',
 }
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={`${archivo.variable} ${mono.variable}`}>
-      <body className="font-sans antialiased">{children}</body>
+      <body className="bg-ground font-sans text-ink antialiased">{children}</body>
     </html>
   )
 }

@@ -1,5 +1,6 @@
 import { ProofMount } from '@/components/ProofMount'
 import { GetIt } from '@/components/GetIt'
+import { SiteHeader } from '@/components/SiteHeader'
 import { StartAtTop } from '@/components/StartAtTop'
 import { Source } from '@/components/Source'
 
@@ -7,6 +8,7 @@ export default function Page() {
   return (
     <>
       <StartAtTop />
+      <SiteHeader />
       <main>
         <ProofMount />
         <GetIt />
@@ -18,10 +20,11 @@ export default function Page() {
         contentinfo role, so the page had no way for anyone navigating by
         landmark to reach the credits at all.
       */}
-      <footer className="border-t border-line px-5 py-8 text-center sm:px-8">
-        <p className="font-mono text-micro text-muted">
-          Clip: Sintel © Blender Foundation, CC BY 3.0 · X-Player is MIT licensed
-        </p>
+      <footer className="border-t border-line px-5 sm:px-8">
+        <div className="mx-auto flex max-w-6xl flex-col gap-1 py-8 text-center text-caption text-muted sm:flex-row sm:justify-between sm:text-left">
+          <p>Clip: Big Buck Bunny © Blender Foundation, CC BY 3.0</p>
+          <p>X-Player is MIT licensed</p>
+        </div>
       </footer>
     </>
   )

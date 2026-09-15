@@ -13,18 +13,14 @@ import { ProofHeading } from './ProofHeading'
 import { Readout } from './Readout'
 
 /*
- * Two minutes, looped from the brightest three seconds of the source.
+ * Two minutes of Big Buck Bunny, chosen so neither panel ever goes black.
  *
- * Two decisions, both learned the hard way. Length first: a fourteen second
- * clip is fully buffered within a second of pressing play, so cutting the
- * connection afterwards has nothing left to cut and both players sail to the
- * end regardless.
- *
- * And brightness. The Sintel excerpt fades to black for whole seconds at a
- * time, so an earlier version of this clip regularly left both panels showing
- * nothing at all - which reads as two broken players rather than as a
- * comparison. A looping window costs some variety and buys a picture that is
- * always visibly either moving or frozen.
+ * Two constraints, both learned the hard way; public/media/CREDITS.md has the
+ * measurements. Length: a short clip is fully buffered within a second of
+ * pressing play, so cutting the connection afterwards has nothing left to cut
+ * and both players sail to the end regardless. Brightness: an earlier source
+ * faded to black between shots, which left both panels showing nothing - and
+ * that reads as two broken players rather than as a comparison.
  */
 const CLIP = withBase('/media/demo-long.mp4')
 const SMALL_CLIP = withBase('/media/demo-480.mp4')
@@ -104,10 +100,10 @@ export function Proof() {
   /*
    * One encode for everyone, sized for the box that matters most.
    *
-   * The comparison box is 159x89 CSS px on a phone, which on a DPR 3 screen
-   * is 477x267 real pixels - so 854x480 was oversampled even for retina, and
-   * a phone was decoding about three times the pixels its box could show,
-   * twice over.
+   * The comparison box is about 170x96 CSS px on a 390px phone, which on a
+   * DPR 3 screen is 510x288 real pixels - so 854x480 was oversampled even for
+   * retina, and a phone was decoding about three times the pixels its box
+   * could show, twice over.
    *
    * I tried giving each layout the encode its own box wanted, and it cannot
    * work: the three figures on screen are all ratios against one clip's
@@ -117,10 +113,10 @@ export function Proof() {
    * which is the demonstration failing rather than a cosmetic mismatch.
    *
    * So both get the small one and the large one stays in the quality menu.
-   * The cost is honest and worth naming: a 530px desktop box shows a 480x270
-   * source, which is soft on a retina laptop. The page is about how a player
-   * behaves on a bad connection, and the phone it behaves worst on is the one
-   * that could not decode it.
+   * The cost is honest and worth naming: a desktop box up to 560px wide shows
+   * a 480x270 source, which is soft on a retina laptop. The page is about how
+   * a player behaves on a bad connection, and the phone it behaves worst on is
+   * the one that could not decode it.
    */
   const renditions = useMemo(
     () => [
@@ -156,16 +152,20 @@ export function Proof() {
    * sticky viewport lets go, the comparison simply scrolls away like anything
    * else, and the next section is already rising to meet it.
    *
+   * A smaller settle than it once was - 0.96 and 24px rather than 0.94 and
+   * 40px - because on a white page the videos are the only dark shapes, and
+   * a large movement of the two darkest things on screen reads as a jolt.
+   *
    * The connection used to be driven from here too - scrolling past the
    * halfway mark switched the comparison to Slow 2G on its own. It read as the
    * page changing its own demonstration under the reader, and it meant nobody
    * could look at the throttled case without the page deciding when. The two
    * buttons are the only thing that changes it now.
    */
-  const stageScale = useTransform(progress, [0, SETTLE], reduced ? [1, 1] : [0.94, 1], {
+  const stageScale = useTransform(progress, [0, SETTLE], reduced ? [1, 1] : [0.96, 1], {
     ease: REVEAL_EASE,
   })
-  const stageY = useTransform(progress, [0, SETTLE], reduced ? [0, 0] : [40, 0], { ease: REVEAL_EASE })
+  const stageY = useTransform(progress, [0, SETTLE], reduced ? [0, 0] : [24, 0], { ease: REVEAL_EASE })
 
   const bareReading = useReading(useCallback(() => bareRef.current, []))
   const playerReading = useReading(useCallback(() => playerVideo, [playerVideo]))
@@ -214,21 +214,40 @@ export function Proof() {
   const current = MODES.find((m) => m.id === mode) ?? MODES[0]
 
   return (
-    <section ref={container} id="proof" aria-labelledby="proof-heading" className="relative h-[200svh]">
-      <div className="sticky top-0 flex h-svh flex-col justify-center gap-5 overflow-hidden px-5 py-5 sm:px-8">
+    <section
+      ref={container}
+      id="proof"
+      aria-labelledby="proof-heading"
+      className="relative h-[200svh] short:h-auto"
+    >
+      {/*
+        The top padding clears the site header, which sits over this part of the
+        page; the heading and the comparison are centred in the height left
+        below it. The column's width is capped by that height too - see
+        .proof-column - so the whole of it fits a laptop screen.
+
+        On a screen too short for that (the `short` variant, in globals.css) the
+        section stops pinning and scrolls like the rest of the page instead of
+        cutting its own bottom off.
+      */}
+      <div className="sticky top-0 flex h-svh flex-col justify-center gap-5 overflow-hidden px-5 pb-5 pt-16 sm:gap-7 sm:px-8 sm:pb-6 sm:pt-20 short:static short:h-auto short:overflow-visible">
         <ProofHeading />
 
         <motion.div
           data-stage="proof"
           style={{ scale: stageScale, y: stageY }}
-          className="mx-auto flex w-full max-w-6xl min-h-0 flex-col gap-2.5 sm:gap-3.5"
+          className="proof-column flex min-h-0 flex-col gap-4"
         >
           {/* Never stacked. The argument is watching both at the same instant;
               one above the other is two videos, not a comparison. */}
-          <div className="grid grid-cols-2 gap-2 sm:gap-3 md:gap-4">
+          <div className="grid grid-cols-2 gap-2.5 sm:gap-4 md:gap-6">
             <Panel
               id="panel-bare"
-              title="A plain <video>"
+              title={
+                <>
+                  A plain <span className="font-mono text-[0.92em]">&lt;video&gt;</span>
+                </>
+              }
               subtitle="What most sites ship"
               tone="bad"
               reading={bareReading}
@@ -272,6 +291,9 @@ export function Proof() {
                   // Names the player's own region, which otherwise reads as the
                   // generic "Video player" beside a panel that says X-Player.
                   title="X-Player"
+                  // The player's own accent, and the brand's. It is drawn inside
+                  // the footage; apart from the mark in the header it is the only
+                  // colour the page itself shows.
                   accent="#ffb020"
                   onReady={(video) => setPlayerVideo(video)}
                 />
@@ -294,13 +316,29 @@ export function Proof() {
           )}
 
           {!holding && (
-            <p
-              key={mode}
-              className="mx-auto max-w-3xl text-center text-body leading-relaxed text-muted sm:text-lead"
-              aria-live="polite"
-            >
-              {VERDICT[mode]}
-            </p>
+            /*
+             * One height for both verdicts, and one live region for both.
+             *
+             * Normal's verdict is one line and Slow 2G's is three, so the column
+             * changed height when the mode changed, and the column's height is
+             * what decides whether the pinned section fits the screen: sized for
+             * Normal, it cut Slow 2G's last line off on a laptop. The longer
+             * sentence now sits invisibly in the same grid cell and holds the
+             * space in both modes.
+             *
+             * The visible sentence is one element that stays mounted while its
+             * text changes. It used to be keyed by mode, which rebuilt the live
+             * region with its text already inside - the case that is usually
+             * announced by nothing at all.
+             */
+            <div className="mx-auto grid max-w-2xl text-center text-body leading-relaxed text-pretty text-muted sm:text-lead">
+              <p aria-hidden className="invisible col-start-1 row-start-1">
+                {VERDICT.slow3g}
+              </p>
+              <p className="col-start-1 row-start-1" aria-live="polite">
+                {VERDICT[mode]}
+              </p>
+            </div>
           )}
         </motion.div>
       </div>
@@ -319,37 +357,53 @@ function Panel({
   children,
 }: {
   id: string
-  title: string
+  title: React.ReactNode
   subtitle: string
   tone: 'good' | 'bad'
   reading: ReturnType<typeof useReading>
   children: React.ReactNode
 }) {
-  const failing = reading.state === 'error' || reading.state === 'stalled'
-  const accent = tone === 'good' ? 'text-good' : 'text-muted'
+  /*
+   * The frame marks trouble the same way on both sides.
+   *
+   * It used to ring the plain video alone, in the error colour, whenever it
+   * stalled - while the sentence under the panels says, correctly, that both
+   * players stall at the same rate. A ring on one side contradicted that. A
+   * stall now gets a quiet ring on whichever panel is stalling, and only a
+   * real error gets the red one.
+   */
+  const ring =
+    reading.state === 'error'
+      ? 'ring-2 ring-bad ring-offset-2 ring-offset-ground'
+      : reading.state === 'stalled'
+        ? 'ring-1 ring-stall/70 ring-offset-2 ring-offset-ground'
+        : ''
 
   /*
    * Named as a group, because the whole point is which reading belongs to which
-   * player. Without this a screen reader meets two identical runs of "STATE
-   * playing, TIME 0:04, AHEAD 3.1s" with nothing to say whose is whose - and
+   * player. Without this a screen reader meets two identical runs of "State
+   * playing, Time 0:04, Ahead 3.1s" with nothing to say whose is whose - and
    * "whose is whose" is the entire argument of the section.
+   *
+   * No card around it. The frame is the video, and the caption and readings sit
+   * underneath it the way a caption sits under a picture; a border around all
+   * three would be a second frame saying the same thing as the first.
+   *
+   * A size container, because the panel's width no longer follows the
+   * viewport's: on a short screen the column narrows by height. Text sizes and
+   * the subtitle answer to the panel itself, which is what they have to fit.
    */
   return (
-    <div
-      data-panel={tone}
-      role="group"
-      aria-labelledby={id}
-      className={`overflow-hidden rounded-xl border bg-panel transition-colors duration-500 ${
-        failing && tone === 'bad' ? 'border-bad/50' : 'border-line'
-      }`}
-    >
-      <div className="flex items-baseline justify-between gap-3 border-b border-line px-2.5 py-2 sm:px-3.5 sm:py-2.5">
-        <h2 id={id} className={`font-mono text-micro tracking-[0.04em] ${accent}`}>
+    <div data-panel={tone} role="group" aria-labelledby={id} className="@container flex min-w-0 flex-col">
+      <div className={`aspect-video w-full overflow-hidden rounded-lg bg-black transition-shadow duration-500 ${ring}`}>
+        {children}
+      </div>
+      <div className="mt-2.5 flex items-baseline justify-between gap-3 @min-[20rem]:mt-3">
+        <h2 id={id} className="truncate text-caption font-medium text-ink @min-[18rem]:text-body">
           {title}
         </h2>
-        <p className="hidden truncate text-micro text-muted sm:block">{subtitle}</p>
+        <p className="hidden truncate text-caption text-muted @min-[26rem]:block">{subtitle}</p>
       </div>
-      <div className="aspect-video w-full bg-black">{children}</div>
       <Readout reading={reading} />
     </div>
   )
@@ -394,7 +448,7 @@ function Controls({
     return (
       <p
         role="alert"
-        className="mx-auto max-w-2xl rounded-lg border border-bad/40 bg-bad/5 px-4 py-3 text-center text-caption text-paper"
+        className="mx-auto max-w-2xl rounded-lg border border-bad/30 bg-bad/5 px-4 py-3 text-center text-caption text-ink"
       >
         The connection cannot be throttled here, so there is nothing honest to show. {unavailable}
       </p>
@@ -402,11 +456,18 @@ function Controls({
   }
 
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col items-center gap-2">
+    // Wider than the control itself, so the sentence under it can stay on one
+    // line on a laptop; the control keeps its own narrower cap.
+    <div className="mx-auto flex w-full max-w-3xl flex-col items-center gap-2.5">
+      {/*
+        A segmented control, and the chosen side is filled in ink. A tint or a
+        hairline would be the quieter choice, and also one that measures well
+        under the 3:1 a selected state needs to be seen at all.
+      */}
       <div
         role="radiogroup"
         aria-label="Connection"
-        className="flex w-full gap-1 rounded-lg border border-line bg-panel p-1"
+        className="grid w-full max-w-xl grid-cols-2 gap-1 rounded-xl bg-panel p-1"
       >
         {MODES.map((m, index) => {
           const on = mode === m.id
@@ -423,8 +484,8 @@ function Controls({
               disabled={pending}
               onClick={() => onPick(m.id)}
               onKeyDown={(event) => onKeyDown(event, index)}
-              className={`flex-1 min-h-12 rounded-md px-3 py-2 font-mono text-caption transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-good disabled:opacity-40 ${
-                on ? 'bg-good/15 text-good' : 'text-muted hover:bg-raised hover:text-paper active:bg-line'
+              className={`min-h-12 rounded-lg px-3 py-2 text-body font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink disabled:opacity-40 ${
+                on ? 'bg-ink text-white' : 'text-muted hover:bg-raised hover:text-ink active:bg-line'
               }`}
             >
               {m.label}
@@ -432,12 +493,12 @@ function Controls({
           )
         })}
       </div>
-      {/* The reading is a number and stays monospaced; the sentence explaining
-          where it comes from is prose and is set like prose. */}
-      <p role="status" className="text-center font-mono text-micro leading-relaxed text-muted">
-        {pending ? 'starting the throttle…' : detail}
+      <p role="status" className="text-center text-caption tabular-nums leading-relaxed text-muted">
+        {pending ? 'Starting the throttle…' : detail}
       </p>
-      <p className="mx-auto max-w-md text-center text-caption leading-relaxed text-muted">
+      {/* One line on a laptop rather than two: every line in this column is
+          height the two videos above it cannot have. */}
+      <p className="mx-auto max-w-3xl text-center text-caption leading-relaxed text-pretty text-muted">
         This page throttles its own connection with a service worker. Both players get the same bytes at the
         same moment.
       </p>
@@ -458,7 +519,7 @@ function Consent({ onStart }: { onStart: () => void }) {
       <button
         type="button"
         onClick={onStart}
-        className="min-h-12 rounded-lg bg-good px-6 py-3 text-body font-semibold text-[#1a1206] transition-colors hover:bg-[#ffc04a] active:bg-[#e59a17] focus-visible:outline-2 focus-visible:outline-offset-3 focus-visible:outline-good"
+        className="min-h-12 rounded-lg bg-ink px-6 py-3 text-body font-medium text-white transition-colors hover:bg-ink-hover active:bg-black focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
       >
         Play the comparison
       </button>

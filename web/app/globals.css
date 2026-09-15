@@ -13,105 +13,137 @@
 @source "../components";
 
 /*
- * The page is a monitor surround, not a brochure.
+ * White ground, graphite ink, and no accent colour of the page's own.
  *
- * A grading suite puts neutral grey around the picture on purpose: a surround
- * with a colour cast drags the eye's white point with it and the picture is
- * judged wrong. This page exists to be believed about what a video is doing, so
- * the greys carry no hue and the only warm thing on screen is the footage.
+ * The page is a frame for two videos, and the colour on it should come from
+ * the footage and the player being demonstrated. Everything the page itself
+ * owns is set in greys: a chosen option is marked in ink, a primary action is
+ * an ink button, and of the page's own parts only the mark is amber. The
+ * player keeps its amber accent, which it draws inside the footage.
  *
- * Amber has one job and it is not decoration: it marks the reading that is
- * live and changing. Every border, label and heading that used to carry it was
- * competing with the one thing on the page making the argument.
+ * Text contrast, measured with the WCAG formula against ground / panel / raised:
+ * ink 17.9 / 16.4 / 15.2, muted 6.4 / 5.9 / 5.5, stall 6.2 / 5.7 / 5.2,
+ * bad 5.7 / 5.2 / 4.8. Every one clears the 4.5:1 normal text needs.
  */
 @theme {
-  --color-ground: #0a0b0c;
-  --color-panel: #121316;
-  --color-raised: #191b1e;
-  --color-line: #24262a;
-  --color-line-bright: #333639;
+  --color-ground: #ffffff;
+  --color-panel: #f5f5f6;
+  --color-raised: #ececee;
+  --color-line: #e4e4e7;
+  --color-line-bright: #d4d4d8;
+
+  --color-ink: #17171a;
+  --color-ink-hover: #2c2c31;
+  --color-muted: #5e5e66;
 
   /*
-   * Two text colours, not three.
-   *
-   * There used to be a third, dimmer tier. On a near-black ground it measured
-   * 2.6:1 against the surface it most often sat on - well under the 4.5:1 that
-   * normal text needs - and it was carrying real prose in 22 places. Raising it
-   * to pass put it within a hair of `muted`, which is the arithmetic saying
-   * plainly that three distinguishable compliant text greys do not fit between
-   * #0a0b0c and white. So the third rank is made with size and weight instead,
-   * and the dim colour keeps only the jobs that are not text.
-   *
-   * Measured against every surface: paper 16.4/15.4/14.3, muted 6.0/5.7/5.2.
+   * Non-text only: the outline of something you can operate, which is the case
+   * WCAG asks 3:1 of. The hairlines above are decoration and sit far below it,
+   * which is correct for a rule and wrong for the only edge of a control.
    */
-  --color-paper: #e9eaeb;
-  --color-muted: #8b8e92;
-  /*
-   * Non-text only, and it has one job: the boundary of something you can
-   * operate. 3.5/3.3/3.0 against the three surfaces, which is the 3:1 that
-   * WCAG asks of a control's outline - the hairline greys above are decoration
-   * and sit far below it, which is correct for a rule and wrong for a border
-   * that is the only thing saying "this is a choice you can make".
-   */
-  --color-faint: #64676b;
+  --color-control: #82828a;
 
-  /*
-   * Amber has one job and it is not decoration: it marks what is live, active
-   * or chosen. It is not a hover colour - every link turning amber on hover
-   * spent the page's one accent on the cursor's whereabouts.
-   */
-  --color-good: #ffb020;
-  /* 4.54:1 on `raised`, where the old #e5484d fell to 4.41 and missed AA. */
-  --color-bad: #e84a4f;
+  /* A stall is worth noticing and is not a failure; a failure is. */
+  --color-stall: #8f5300;
+  --color-bad: #c0312d;
+
+  /* The brand mark's amber, and nothing else on the page. */
+  --color-mark: #ffb020;
 
   --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-mono-face), ui-monospace, monospace;
 
   /*
-   * One scale, in rem.
-   *
-   * There were twelve hand-picked pixel sizes here: 11, 11.5, 12, 12.5, 13,
-   * 13.5, 14, 14.5, 15, 16, 19 and 10. Half a pixel is not a decision anyone can
-   * see, so the differences bought nothing and cost a judgement call at every
-   * element. These six are a 1.125 progression, and they are rem so that a
-   * reader who has raised their browser's default text size gets a page that
-   * listens - px would ignore them.
+   * One scale, in rem, so that a reader who has raised their browser's default
+   * text size gets a page that listens - px would ignore them.
    */
-  --text-micro: 0.6875rem; /* 11px - mono labels, counts, hints */
-  --text-caption: 0.78125rem; /* 12.5px - captions and notes */
-  --text-body: 0.875rem; /* 14px - default UI and prose */
-  --text-lead: 0.96875rem; /* 15.5px - option labels, lead paragraphs */
-  --text-title: 1.09375rem; /* 17.5px - the question prompts */
-  --text-figure: 1.21875rem; /* 19.5px - a measured number meant to be read */
+  --text-micro: 0.75rem; /* 12px - meta and hints */
+  --text-caption: 0.8125rem; /* 13px - notes and secondary lines */
+  --text-body: 0.9375rem; /* 15px - default UI and prose */
+  --text-lead: 1.0625rem; /* 17px - option labels, lead paragraphs */
+  --text-title: 1.1875rem; /* 19px - the question prompts */
+  --text-figure: 1.25rem; /* 20px - a total meant to be read */
 
-  --text-hero: clamp(2rem, 4.4vw, 3.75rem);
-  --text-section: clamp(2rem, 4.6vw, 3.5rem);
+  /*
+   * The heading answers to the screen's height as well, through the svh term:
+   * on a short laptop screen the comparison has to fit underneath it, and a
+   * heading sized for the width alone took the room the two videos needed.
+   */
+  --text-hero: clamp(2rem, min(1.35rem + 3.1vw, 6.2svh), 3.5rem);
+  --text-section: clamp(1.75rem, 1.2rem + 2.1vw, 2.625rem);
+}
+
+/*
+ * The comparison's column is capped by the screen's height as well as its
+ * width, because the section pins itself to the viewport and whatever does not
+ * fit is cut off rather than scrolled to.
+ *
+ * Everything in the column except the two videos is text and spacing, plus two
+ * lines of heading at 6.2svh each, so the height left for the videos is 87svh
+ * minus that text. Two 16:9 frames side by side are 3.556 times as wide as they
+ * are tall, plus the gap between them - 1.5rem from md up and less below, which
+ * only makes the cap slightly conservative. The site header and the heading
+ * share the cap, so all three keep one left edge.
+ *
+ * The text allowance is 30rem. The dark design clipped its last line by 8px at
+ * 1366x768 and 49px at 1280x720. This one, at 26rem and then 27rem, fitted in
+ * Normal - and a review found it still clipped in Slow 2G, whose verdict runs
+ * three lines where Normal's runs one, and while the stage was still settling.
+ * The verdict now holds Slow 2G's height in both modes (Proof.tsx), and the
+ * allowance is sized against that.
+ */
+.proof-column {
+  width: 100%;
+  margin-inline: auto;
+  max-width: min(72rem, max(20rem, calc((87svh - 30rem) * 3.556 + 1.5rem)));
+}
+
+/*
+ * A screen too short to hold the comparison pinned at a readable size.
+ *
+ * Below 740px the cap above would narrow the two videos past the point where
+ * their captions and readings fit, and at the heights a browser really leaves
+ * on a laptop - about 633px on a 1366x768 screen - the pinned section clipped
+ * outright. In landscape on a phone, or at 200% zoom, the connection control
+ * was not on screen at all. Under this height the section stops pinning and
+ * scrolls like everything else, at its full width.
+ */
+@custom-variant short (@media (max-height: 739px));
+
+@media (max-height: 739px) {
+  .proof-column {
+    max-width: 72rem;
+  }
+}
+
+/*
+ * The player's own focus ring, drawn inside it.
+ *
+ * .xp-root draws its ring 2px outside its box, and the video frame around it
+ * clips to rounded corners with overflow: hidden - so the ring was cut away on
+ * all four sides, and a keyboard user tabbing to the player saw nothing.
+ */
+.stage-player .xp-root:focus-visible {
+  outline-offset: -2px;
 }
 
 html {
   background: var(--color-ground);
-  color-scheme: dark;
-}
-
-/*
- * Section headings take Archivo's wide cut.
- *
- * This is the one typographic gesture on the page, so it is spent in one place
- * and nowhere else: legends on equipment are wide and tracked tight, and a
- * heading set that way reads as a label on a machine rather than as marketing.
- */
-.legend {
-  font-variation-settings: 'wdth' 112;
-  letter-spacing: -0.028em;
+  color-scheme: light;
 }
 
 body {
+  /*
+   * Painted, not inherited. The contrast suite measures text against the first
+   * ancestor with an opaque background and falls back to black when it finds
+   * none, which on a white page would fail every string on it.
+   */
   background: var(--color-ground);
-  color: var(--color-paper);
+  color: var(--color-ink);
   -webkit-font-smoothing: antialiased;
 }
 
-/* The player fills whatever panel it is given. */
+/* The player fills whatever frame it is given; the frame owns the corners. */
 .stage-player .xp-root {
   width: 100%;
   height: 100%;

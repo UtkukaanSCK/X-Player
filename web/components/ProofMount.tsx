@@ -23,7 +23,7 @@ const Proof = dynamic(() => import('./Proof').then((m) => m.Proof), {
     <section className="relative h-[200vh]">
       <div className="sticky top-0 flex h-screen flex-col justify-center gap-5 overflow-hidden px-5 py-5 sm:px-8">
         <ProofHeading />
-        <p className="mx-auto w-full max-w-6xl font-mono text-caption text-muted" role="status">
+        <p className="proof-column text-caption text-muted" role="status">
           Preparing the comparison…
         </p>
       </div>
