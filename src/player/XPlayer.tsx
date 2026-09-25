@@ -49,6 +49,8 @@ export function XPlayer({
   audioTracks = NO_AUDIO,
   activeAudioTrack = -1,
   onAudioTrack,
+  range = null,
+  onRangeChange,
   apiRef,
   rememberPosition = true,
   storageKey,
@@ -323,6 +325,8 @@ export function XPlayer({
         onSource={commands.setSource}
         onTextTrack={setTextTrack}
         onAudioTrack={commands.setAudioTrack}
+        range={range}
+        onRangeChange={onRangeChange}
         onToggleSubtitles={cycleSubtitles}
         onTogglePip={commands.togglePip}
         onToggleFullscreen={commands.toggleFullscreen}

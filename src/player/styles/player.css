@@ -844,6 +844,55 @@
   padding: 0 4px;
 }
 
+/* ------------------------------------------------- the selected stretch */
+
+/*
+ * The handles are siblings of the seek bar, not children of it: a slider may
+ * not contain another slider, and a press inside the bar seeks. The wrapper
+ * exists only to give them the bar's own box to be positioned in.
+ */
+.xp-seek-area {
+  position: relative;
+}
+
+.xp-seek-range {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  background: rgba(255, 255, 255, 0.78);
+}
+
+.xp-range-handle {
+  position: absolute;
+  top: 50%;
+  width: 20px;
+  height: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transform: translate(-50%, -50%);
+  cursor: ew-resize;
+  /* The browser must not take a drag along this bar as a scroll. */
+  touch-action: none;
+}
+
+/* The grip is drawn small and the box around it is left big to hit. */
+.xp-range-handle::after {
+  content: '';
+  width: 4px;
+  height: 15px;
+  border-radius: 2px;
+  background: #fff;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.65);
+}
+
+.xp-range-handle:focus-visible {
+  outline: none;
+}
+.xp-range-handle:focus-visible::after {
+  box-shadow: 0 0 0 2px var(--xp-accent);
+}
+
 /* ---------------------------------------------------------------- volume */
 
 .xp-volume {
@@ -1314,6 +1363,11 @@
   /* The control that matters most had the smallest hit area on the bar. */
   .xp-root .xp-seek {
     height: 32px;
+  }
+  /* A handle is a control too, and a finger is no smaller for grabbing one. */
+  .xp-root .xp-range-handle {
+    width: 44px;
+    height: 44px;
   }
 }
 

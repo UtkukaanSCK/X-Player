@@ -1,5 +1,5 @@
 import type { RefObject } from 'react'
-import type { PlayerState, XPlayerAudioTrack, XPlayerSource } from '../types'
+import type { PlayerState, XPlayerAudioTrack, XPlayerRange, XPlayerSource } from '../types'
 import { formatTime } from '../format'
 import { SeekBar, type SeekRefs } from './SeekBar'
 import type { FramePreview } from '../hooks/useFramePreview'
@@ -43,6 +43,9 @@ interface Props {
   onSource: (index: number) => void
   onTextTrack: (index: number) => void
   onAudioTrack: (id: number) => void
+  /** A stretch of the video to mark on the seek bar. */
+  range?: XPlayerRange | null
+  onRangeChange?: (range: XPlayerRange) => void
   onToggleSubtitles: () => void
   onTogglePip: () => void
   onToggleFullscreen: () => void
@@ -64,6 +67,8 @@ export function ControlBar(props: Props) {
         seekingRef={props.seekingRef}
         drawRatio={props.drawRatio}
         preview={props.preview}
+        range={props.range}
+        onRangeChange={props.onRangeChange}
         onSeek={props.onSeek}
         onScrub={props.onScrub}
         onActivity={props.onActivity}

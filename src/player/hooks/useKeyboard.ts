@@ -1,5 +1,14 @@
 import { useEffect, type RefObject } from 'react'
 
+/**
+ * Keys a selection handle takes for itself.
+ *
+ * This listener is on the container, under the React tree, so it sees a key
+ * before the handle's own onKeyDown can stop it: without the carve-out below,
+ * moving a handle by one second also seeks the video by five.
+ */
+const RANGE_KEYS = /^(Arrow(Left|Right|Up|Down)|Home|End)$/
+
 export interface PlayerCommands {
   togglePlay: () => void
   seekBy: (delta: number) => void
@@ -33,6 +42,7 @@ export function useKeyboard(
         if (target.tagName !== 'INPUT' || (target as HTMLInputElement).type !== 'range') return
         if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') return
       }
+      if (target?.closest('[data-xp-range]') && RANGE_KEYS.test(e.key)) return
       if (e.altKey || e.ctrlKey || e.metaKey) return
 
       const c = commandsRef.current
