@@ -31,6 +31,18 @@ export interface XPlayerApi {
   getVideo: () => HTMLVideoElement | null
 }
 
+/**
+ * A selected stretch of the video, in seconds.
+ *
+ * The player draws it on the seek bar with a handle at each end, and reports
+ * where the viewer drags them. What the selection is for is the host's
+ * business - the desktop app cuts a GIF out of it.
+ */
+export interface XPlayerRange {
+  start: number
+  end: number
+}
+
 /** One subtitle track (WebVTT). */
 export interface XPlayerTrack {
   src: string
@@ -93,6 +105,15 @@ export interface XPlayerProps {
   /** Id of the audio track in use. -1 when there is nothing to choose. */
   activeAudioTrack?: number
   onAudioTrack?: (id: number) => void
+  /**
+   * A stretch of the video to mark on the seek bar, draggable from either end.
+   *
+   * Controlled by the host, like the audio tracks: without one nothing extra is
+   * drawn, and moving a handle changes nothing by itself - it reports where the
+   * handle was left and waits to be given the selection back.
+   */
+  range?: XPlayerRange | null
+  onRangeChange?: (range: XPlayerRange) => void
   /** Receives the imperative handle once the player is mounted. */
   apiRef?: RefObject<XPlayerApi | null>
   /** Whether to offer resuming where the viewer left off. Default: on. */
