@@ -759,6 +759,64 @@ for (const [width, want] of [[600, 52], [561, 52], [560, 46], [301, 46], [221, 4
 }
 check('the bar gets shorter with the tiers', wrongBar.length === 0, wrongBar.join('; ') || '52, 46 and 44 where they belong')
 
+/* ------------------------------------------- selecting a stretch of it */
+
+/*
+ * The handles belong to the host: nothing is drawn until one is given. Both of
+ * the checks below are about the seek bar underneath them - a handle that lets
+ * the press through seeks the video, and an arrow key that reaches the window
+ * seeks it by five seconds, which is the whole reason this is driven rather
+ * than reasoned about.
+ */
+const RANGE_CASE = '[data-case="range"]'
+await page.locator('#range').scrollIntoViewIfNeeded()
+await page.waitForTimeout(800)
+check('no handles on the bar until a range is given', (await page.locator(`${RANGE_CASE} .xp-range-handle`).count()) === 0)
+
+await page.locator('#range [data-range-toggle]').click()
+const handles = page.locator(`${RANGE_CASE} .xp-range-handle`)
+check('a range puts a handle at each end', (await handles.count()) === 2)
+
+const reported = () => page.locator('#range [data-range]').textContent()
+const rangePlayhead = () => page.evaluate((sel) => document.querySelector(`${sel} video.xp-video`).currentTime, RANGE_CASE)
+const handleValues = () =>
+  page.evaluate(
+    (sel) => [...document.querySelectorAll(`${sel} .xp-range-handle`)].map((h) => ({
+      now: Number(h.getAttribute('aria-valuenow')),
+      text: h.getAttribute('aria-valuetext'),
+      label: h.getAttribute('aria-label'),
+    })),
+    RANGE_CASE,
+  )
+
+const seekBox = await page.locator(`${RANGE_CASE} .xp-seek`).boundingBox()
+const startBox = await handles.first().boundingBox()
+await page.mouse.move(startBox.x + startBox.width / 2, startBox.y + startBox.height / 2)
+await page.mouse.down()
+await page.mouse.move(seekBox.x + 2, startBox.y + startBox.height / 2, { steps: 10 })
+await page.mouse.up()
+const dragged = await reported()
+check('dragging a handle moves the selection it was given', /^0\.\d\d to 10\.00$/.test(dragged), dragged)
+check('and the press never reaches the seek bar under it', (await rangePlayhead()) === 0, `${await rangePlayhead()}s`)
+
+await handles.last().focus()
+const endBefore = (await handleValues())[1]
+await page.keyboard.press('ArrowLeft')
+const endAfter = (await handleValues())[1]
+check('an arrow key moves the handle by a second, not the playhead by five', endBefore.now - endAfter.now === 1 && (await rangePlayhead()) === 0, `${endBefore.now} -> ${endAfter.now}`)
+check('and the handle says where it is in words', endAfter.text === `${endAfter.now} seconds` && /selection/i.test(endAfter.label), `${endAfter.label}: ${endAfter.text}`)
+
+for (let press = 0; press < 20; press++) await page.keyboard.press('ArrowLeft')
+const [low, high] = await handleValues()
+const stillApart = await page.evaluate(
+  (sel) => {
+    const said = document.querySelector(sel).textContent.match(/([\d.]+) to ([\d.]+)/)
+    return said ? +(Number(said[2]) - Number(said[1])).toFixed(2) : null
+  },
+  '#range [data-range]',
+)
+check('the handles cannot be pushed through each other', stillApart === 0.2 && high.now >= low.now, `${stillApart}s apart`)
+
 check('no uncaught page errors', pageErrors.length === 0, pageErrors.join(' | '))
 await page.close()
 
@@ -1089,6 +1147,22 @@ check(
   centred ? `hit ${centred.blocker}` : 'no big play button rendered - check is not testing anything',
 )
 await fresh.close()
+/* A handle is a control, and controls grow for a finger like every other one. */
+await phone.locator('#range').scrollIntoViewIfNeeded()
+await phone.locator('#range [data-range-toggle]').click()
+await phone.waitForTimeout(400)
+const fingerSized = await phone.evaluate(() =>
+  [...document.querySelectorAll('[data-case="range"] .xp-range-handle')].map((handle) => {
+    const r = handle.getBoundingClientRect()
+    return { w: Math.round(r.width), h: Math.round(r.height) }
+  }),
+)
+check(
+  'the selection handles are big enough to hit on a phone',
+  fingerSized.length === 2 && fingerSized.every((box) => box.w >= 44 && box.h >= 44),
+  JSON.stringify(fingerSized),
+)
+
 await phone.close()
 
 await browser.close()

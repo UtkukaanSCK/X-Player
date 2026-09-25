@@ -1,7 +1,7 @@
 import { StrictMode, useCallback, useEffect, useRef, useState } from 'react'
 import { createRoot } from 'react-dom/client'
 import { XPlayer } from '../player/XPlayer'
-import type { XPlayerSource, XPlayerTrack } from '../player/types'
+import type { XPlayerRange, XPlayerSource, XPlayerTrack } from '../player/types'
 import './dev.css'
 
 /**
@@ -34,6 +34,41 @@ function Case({ id, title, note, children }: { id: string; title: string; note: 
       <p>{note}</p>
       {children}
     </section>
+  )
+}
+
+/**
+ * A host that owns a selection.
+ *
+ * The player draws the range and reports where the handles are dragged to; what
+ * it means is this page's business, the way it is the desktop app's. The
+ * numbers are printed so a run can see what was reported, not only what moved.
+ */
+function RangeCase() {
+  const [range, setRange] = useState<XPlayerRange | null>(null)
+  return (
+    <Case
+      id="range"
+      title="Selecting a stretch"
+      note="With a range given, the seek bar grows a handle at each end. Dragging one must move the selection without seeking the video, and the arrow keys must move the handle rather than the playhead."
+    >
+      <div className="row">
+        <button type="button" data-range-toggle onClick={() => setRange(range ? null : { start: 4, end: 10 })}>
+          {range ? 'Clear selection' : 'Select 0:04 to 0:10'}
+        </button>
+        <output data-range>{range ? `${range.start.toFixed(2)} to ${range.end.toFixed(2)}` : 'nothing selected'}</output>
+      </div>
+      <div className="stage" data-case="range">
+        <XPlayer
+          src={SOURCES[0].src}
+          poster={POSTER}
+          title="Selection"
+          rememberPosition={false}
+          range={range}
+          onRangeChange={setRange}
+        />
+      </div>
+    </Case>
   )
 }
 
@@ -130,6 +165,8 @@ function Harness() {
           <XPlayer src={SOURCES[0].src} poster={POSTER} title="Single source" storageKey="dev-single" />
         </div>
       </Case>
+
+      <RangeCase />
 
       <Case
         id="custom"
