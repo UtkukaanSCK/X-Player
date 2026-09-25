@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- A host can mark a stretch of the video on the seek bar. Give the player a
+  `range` and the bar grows a handle at each end, dragged with a pointer or
+  moved a second at a time with the arrow keys - five with Shift held - and
+  `onRangeChange` reports where a handle was left. Each handle is a slider in
+  its own right, says where it is in words, and is finger-sized on a touch
+  screen; the handles cannot be pushed through each other. Without a range
+  nothing extra is drawn and nothing about the bar changes, and the player
+  never moves a handle on its own: the selection belongs to the host, the way
+  the audio tracks do.
 - Hovering the seek bar shows the frame at that point in the video. Nothing to
   generate and nothing to configure: the frame is drawn from a second, hidden
   copy of the file, so it works on anything the player can already play. It is
