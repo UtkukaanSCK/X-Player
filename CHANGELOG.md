@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Fixed: a screen reader was told nothing when the player offered to resume. The
+  card had no role and no name, so at the narrowest width the only thing in the
+  accessibility tree was two buttons, Resume and Start over, with nothing saying
+  what Resume would jump to. The offer now speaks itself through a live region
+  that is there all along and only changes its text - the shape that is reliably
+  announced - and it says the time the way the rest of the player speaks times,
+  "3 minutes 21 seconds" rather than "3:21". The Resume button carries the time
+  in its own name as well, for anyone who reaches it by Tab without having heard
+  the offer arrive. Escape now answers the offer too, and leaves the remembered
+  position alone, as every way of closing the card does. Measured in Chromium;
+  no screen reader has heard it.
 - The arrow keys walk an open menu. Up and Down step and wrap, Home and End
   jump, and Left steps back out of a sub-panel; from the button that opened the
   menu, Down and Up go in at either end. They used to reach the player instead,
