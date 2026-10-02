@@ -2,6 +2,27 @@
 
 ## Unreleased
 
+- The arrow keys walk an open menu. Up and Down step and wrap, Home and End
+  jump, and Left steps back out of a sub-panel; from the button that opened the
+  menu, Down and Up go in at either end. They used to reach the player instead,
+  so ArrowDown in an open menu turned the volume down while focus stayed where
+  it was. The rest of the shortcuts keep working inside a menu - only the seven
+  keys that mean two things are handed over.
+- Fixed: a double tap took the player full screen as well as skipping ten
+  seconds. The event a double tap produces is the same one a mouse produces, so
+  the test that asked which it was had always been true. A right click no longer
+  pauses the video on its way to the browser's own menu either.
+- Fixed: the frame preview went past the player's edge near either end of the
+  seek bar - 85px of it, cut off - and is now held inside the bar. It is also
+  placed without asking for a layout, so moving the pointer along the bar no
+  longer makes the next measurement a synchronous one.
+- Fixed: several controls were being drawn by the stylesheet's own reset instead
+  of by their own rules - the big play button, Try again, Resume, the subtitles
+  button's on colour and every menu row's padding. A menu row is now finger-sized
+  under a coarse pointer, a menu is drawn above the bar buttons that follow it
+  rather than under them, a toast is shown still rather than invisibly faded for
+  anyone who asked for less motion, and focus or scrollIntoView can no longer
+  slide the whole player sideways inside its frame.
 - Fixed: answering the resume offer could throw away the remembered position
   by accident. On a 300px-wide player with a coarse pointer the offer card is
   84px tall against a 46px control bar and covers it entirely, so a tap meant
