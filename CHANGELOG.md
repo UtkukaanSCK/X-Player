@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Fixed: answering the resume offer could throw away the remembered position
+  by accident. On a 300px-wide player with a coarse pointer the offer card is
+  84px tall against a 46px control bar and covers it entirely, so a tap meant
+  for settings or full screen landed on Start over - and Start over erased the
+  position. Nothing on the card erases one now: Resume seeks to it, Start over
+  leaves it where it is, and playback overwrites it by itself once the viewer
+  is more than fifteen seconds in, which is what starting over did anyway.
+  Opening a menu now closes the offer as well, because the card is answered
+  with a pointer that has already moved past it, and the offer is raised at
+  most once for a video - switching quality used to bring it back for a
+  position already answered or long since played past, and pin the controls
+  until it was answered again.
 - A host can mark a stretch of the video on the seek bar. Give the player a
   `range` and the bar grows a handle at each end, dragged with a pointer or
   moved a second at a time with the arrow keys - five with Shift held - and
