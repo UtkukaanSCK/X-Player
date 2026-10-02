@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState, type RefObject } from 'react'
 
+/** Every row a viewer can land on, in either menu. */
+const ITEMS = '[role="menuitem"], [role="menuitemradio"]'
+
 interface Menu {
   open: boolean
   setOpen: (open: boolean) => void
@@ -66,18 +69,68 @@ export function useMenu(onOpenChange: (open: boolean) => void): Menu {
       if (e.relatedTarget !== null) return
       queueMicrotask(() => {
         if (dismissing || !wrap || wrap.contains(document.activeElement)) return
-        const first = wrap.querySelector<HTMLElement>('[role="menuitem"], [role="menuitemradio"]')
+        const first = wrap.querySelector<HTMLElement>(ITEMS)
         ;(first ?? buttonRef.current)?.focus()
       })
+    }
+
+    /*
+     * The arrow keys move through the rows, the way a menu's do.
+     *
+     * They used to fall through to the player, so ArrowDown in an open menu
+     * turned the volume down while focus stayed where it was. Up and Down step
+     * and wrap, Home and End jump, and Left steps back out of a sub-panel.
+     * From the button that opened the menu, Down and Up go in at either end.
+     * Rows the bar is still showing are in the DOM but have no box, so they
+     * are skipped. Bound on the wrapper, which the player's own listener sits
+     * above, so a key handled here never reaches it.
+     */
+    const onNavigate = (e: KeyboardEvent) => {
+      if (e.altKey || e.ctrlKey || e.metaKey) return
+      const menu = wrap?.querySelector<HTMLElement>('[role="menu"]')
+      if (!menu) return
+      const items = [...menu.querySelectorAll<HTMLElement>(ITEMS)].filter((el) => el.getClientRects().length > 0)
+      if (items.length === 0) return
+      const at = items.indexOf(document.activeElement as HTMLElement)
+      let next: HTMLElement | undefined
+      switch (e.key) {
+        case 'ArrowDown':
+          next = items[(at + 1) % items.length]
+          break
+        case 'ArrowUp':
+          next = items[at <= 0 ? items.length - 1 : at - 1]
+          break
+        case 'Home':
+          next = items[0]
+          break
+        case 'End':
+          next = items[items.length - 1]
+          break
+        case 'ArrowLeft': {
+          // Choosing it unmounts the panel, and onFocusOut above puts focus
+          // on the first row of the one that replaces it.
+          const back = menu.querySelector<HTMLElement>('.xp-menu-back')
+          if (!back) return
+          back.click()
+          break
+        }
+        default:
+          return
+      }
+      e.preventDefault()
+      e.stopPropagation()
+      next?.focus()
     }
 
     document.addEventListener('pointerdown', onDown, true)
     document.addEventListener('keydown', onKey, true)
     wrap?.addEventListener('focusout', onFocusOut)
+    wrap?.addEventListener('keydown', onNavigate)
     return () => {
       document.removeEventListener('pointerdown', onDown, true)
       document.removeEventListener('keydown', onKey, true)
       wrap?.removeEventListener('focusout', onFocusOut)
+      wrap?.removeEventListener('keydown', onNavigate)
     }
   }, [open])
 

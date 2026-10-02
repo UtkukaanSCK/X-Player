@@ -9,6 +9,21 @@ import { useEffect, type RefObject } from 'react'
  */
 const RANGE_KEYS = /^(Arrow(Left|Right|Up|Down)|Home|End)$/
 
+/**
+ * Keys an open menu takes for itself while one of its rows has focus.
+ *
+ * The arrows, Home and End move through the rows (useMenu), and Space has to
+ * reach the focused row's own activation instead of toggling play. Those are
+ * the only keys that mean two things. Every other shortcut (M, F, K, J, L, the
+ * comma and full stop, the digits) means the same thing inside a menu as
+ * outside, so it keeps working. Escape is not a player shortcut and is
+ * handled by useMenu on the document.
+ *
+ * Without this, ArrowDown in an open menu turned the volume down while focus
+ * stayed where it was, and ArrowLeft in a panel seeked the video behind it.
+ */
+const MENU_KEYS = /^(Arrow(Left|Right|Up|Down)|Home|End| )$/
+
 export interface PlayerCommands {
   togglePlay: () => void
   seekBy: (delta: number) => void
@@ -43,6 +58,7 @@ export function useKeyboard(
         if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === 'ArrowUp' || e.key === 'ArrowDown') return
       }
       if (target?.closest('[data-xp-range]') && RANGE_KEYS.test(e.key)) return
+      if (target?.closest('[role="menu"]') && MENU_KEYS.test(e.key)) return
       if (e.altKey || e.ctrlKey || e.metaKey) return
 
       const c = commandsRef.current
