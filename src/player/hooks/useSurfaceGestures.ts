@@ -28,8 +28,20 @@ interface Options {
 export function useSurfaceGestures({ enabled, togglePlay, seekBy, toggleFullscreen, onActivity }: Options) {
   const press = useRef<{ id: number; x: number; y: number; at: number } | null>(null)
   const lastTap = useRef({ at: 0, x: 0 })
+  /** What the last press on the picture was made with. A dblclick does not say. */
+  const lastPointer = useRef('')
 
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    lastPointer.current = e.pointerType
+    /*
+     * The primary button only. A right click is how a viewer reaches the
+     * browser's own menu - to copy the video's address, say - and it paused
+     * the video on the way there.
+     */
+    if (e.button !== 0) {
+      press.current = null
+      return
+    }
     press.current = { id: e.pointerId, x: e.clientX, y: e.clientY, at: performance.now() }
   }, [])
 
@@ -75,12 +87,17 @@ export function useSurfaceGestures({ enabled, togglePlay, seekBy, toggleFullscre
     [enabled, togglePlay, seekBy, onActivity],
   )
 
-  const onDoubleClick = useCallback(
-    (e: React.MouseEvent<HTMLDivElement>) => {
-      if (e.nativeEvent instanceof MouseEvent) toggleFullscreen()
-    },
-    [toggleFullscreen],
-  )
+  /*
+   * Full screen for a mouse only. Two taps also produce a dblclick, and that
+   * event is a plain MouseEvent whatever made it - the instanceof test that
+   * stood here was true for touch too - so a double tap to skip ten seconds
+   * took the player full screen as well. The press that led here says which
+   * it was.
+   */
+  const onDoubleClick = useCallback(() => {
+    if (lastPointer.current === 'touch') return
+    toggleFullscreen()
+  }, [toggleFullscreen])
 
   return { onPointerDown, onPointerUp, onPointerCancel, onDoubleClick }
 }
