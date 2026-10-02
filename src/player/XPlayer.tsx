@@ -122,7 +122,12 @@ export function XPlayer({
 
   useStallGuard({ videoRef, playing: state.playing, dispatch, softRecover: engine.softRecover })
 
-  const resume = useResume(videoRef, videoId, rememberPosition, storageKey)
+  const { offer: resumeOffer, acceptOffer, closeOffer } = useResume(
+    videoRef,
+    videoId,
+    rememberPosition,
+    storageKey,
+  )
 
   const { crossOrigin, setTextTrack, cycleSubtitles } = useSubtitles({
     videoRef,
@@ -158,7 +163,7 @@ export function XPlayer({
   })
 
   /* Nothing may hide the controls while a menu, an error or the offer is up. */
-  const locked = menuOpen || !!state.error || resume.offer !== null
+  const locked = menuOpen || !!state.error || resumeOffer !== null
   const { visible: controlsVisible, show: pokeControls } = useControlsVisibility(
     containerRef,
     state.playing,
@@ -181,12 +186,41 @@ export function XPlayer({
   useKeyboard(containerRef, commandsRef, pokeControls)
 
   const surface = useSurfaceGestures({
-    enabled: !state.error && resume.offer === null,
+    enabled: !state.error && resumeOffer === null,
     togglePlay: commands.togglePlay,
     seekBy: commands.seekBy,
     toggleFullscreen: commands.toggleFullscreen,
     onActivity: pokeControls,
   })
+
+  /* ---------------------------------------------------- the offer and a menu */
+
+  /*
+   * A menu opening closes the resume offer.
+   *
+   * The two want the same strip of the player: the offer spans the width just
+   * above the bar, and the menu opens upward from the bar into it. The
+   * stylesheet lifts an open menu over the offer, so its rows do take the
+   * press - but on a small player the two still cover each other, and the
+   * offer is left under a pointer that has moved on. The viewer walked past
+   * the offer to reach the menu, so the offer is the one that goes.
+   *
+   * Closing is all that happens here. Nothing on the card erases a stored
+   * position either: Resume seeks to it, Start over leaves it where it is, and
+   * neither throws it away. Playback overwrites it from here on as it would
+   * have with the card still up.
+   *
+   * It does not come back when the menu closes - a two-button card reappearing
+   * under a pointer on its way to the control it just chose is a second
+   * interruption - and a quality switch made from the menu cannot raise it
+   * again either, because the rendition change keeps the same videoId.
+   *
+   * The controls stay pinned either way: `locked` above is true while the menu
+   * is open, which is exactly as long as this applies.
+   */
+  useEffect(() => {
+    if (menuOpen && resumeOffer !== null) closeOffer()
+  }, [menuOpen, resumeOffer, closeOffer])
 
   /* -------------------------------------------------------------- autoplay */
 
@@ -288,15 +322,15 @@ export function XPlayer({
 
       <Toast toast={toast} />
 
-      {resume.offer !== null && (
+      {resumeOffer !== null && (
         <div className="xp-resume">
           <span>
-            Resume from <strong>{formatTime(resume.offer)}</strong>?
+            Resume from <strong>{formatTime(resumeOffer)}</strong>?
           </span>
-          <button type="button" className="xp-resume-primary" onClick={resume.acceptOffer}>
+          <button type="button" className="xp-resume-primary" onClick={acceptOffer}>
             Resume
           </button>
-          <button type="button" className="xp-resume-ghost" onClick={resume.dismissOffer}>
+          <button type="button" className="xp-resume-ghost" onClick={closeOffer}>
             Start over
           </button>
         </div>

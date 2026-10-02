@@ -53,11 +53,23 @@ export function useResume(
     setOffer(null)
   }, [src])
 
+  /*
+   * The last video a position was offered for - only the last, not every one
+   * seen on this mount. Switching quality
+   * re-attaches the element and fires loadedmetadata again under the same
+   * video, and a second offer would arrive for a position the viewer has
+   * answered already or has long since played past - pinning the controls
+   * until it is answered again. It is set only when an offer is really made,
+   * so a first load whose metadata arrives late still gets to make one.
+   */
+  const offeredFor = useRef<string | null>(null)
+
   // Work out the offer once metadata arrives.
   useEffect(() => {
     const video = videoRef.current
     if (!video || !enabled) return
     const onMeta = () => {
+      if (offeredFor.current === src) return
       const saved = read()
       // Same guard the save path uses: a live stream reports Infinity, which is
       // truthy, so a position left by an earlier build would still be offered.
@@ -66,6 +78,7 @@ export function useResume(
         Number.isFinite(video.duration) &&
         saved < video.duration * DONE_RATIO
       ) {
+        offeredFor.current = src
         setOffer(saved)
       }
     }
@@ -119,10 +132,28 @@ export function useResume(
     setOffer(null)
   }, [videoRef, offer])
 
-  const dismissOffer = useCallback(() => {
-    write(0)
+  /*
+   * Takes the card off the screen and leaves the stored position where it is.
+   * No press erases a position: measured at a 300px-wide player with a coarse
+   * pointer, the card is 84px tall against a 46px bar and covers it entirely,
+   * so a tap meant for settings or full screen lands on the card's own button,
+   * and a bookmark lost to a mis-aimed tap is worse than the price of keeping
+   * one too long.
+   *
+   * That price, weighed and accepted: a viewer who answers Start over and
+   * leaves within MIN_SECONDS is offered the same position again next time.
+   * Playing on overwrites it at the first save tick after MIN_SECONDS, and if
+   * the viewer does reach DONE_RATIO the save path removes the key outright.
+   * Leaving anywhere in between leaves that position as the bookmark.
+   *
+   * The label stays honest all the same. The card asks whether to resume, so
+   * the second button means "no, I will watch from the beginning", and a fresh
+   * load is already at 0, leaving it nothing to do. "Not now" would be worse:
+   * the offer does not return this session, so it would promise what is untrue.
+   */
+  const closeOffer = useCallback(() => {
     setOffer(null)
-  }, [write])
+  }, [])
 
-  return { offer, acceptOffer, dismissOffer }
+  return { offer, acceptOffer, closeOffer }
 }
