@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
-import type { CSSProperties } from 'react'
+import type { CSSProperties, KeyboardEvent } from 'react'
 import type { XPlayerApi, XPlayerAudioTrack, XPlayerProps, XPlayerSource, XPlayerTrack } from './types'
 import { usePlayerState } from './hooks/usePlayerState'
 import { useProgressLoop, useProgressPaint, type SeekRefs } from './hooks/useProgressPaint'
@@ -17,8 +17,21 @@ import { useKeyboard, type PlayerCommands } from './hooks/useKeyboard'
 import { ControlBar } from './ui/ControlBar'
 import { CenterOverlay } from './ui/CenterOverlay'
 import { Toast, useToast } from './ui/Toast'
-import { formatTime } from './format'
+import { formatTime, spokenTime } from './format'
 import './styles/player.css'
+
+/** Present for assistive technology, invisible and out of layout. */
+const SR_ONLY: CSSProperties = {
+  position: 'absolute',
+  width: 1,
+  height: 1,
+  overflow: 'hidden',
+  margin: -1,
+  padding: 0,
+  border: 0,
+  clip: 'rect(0 0 0 0)',
+  whiteSpace: 'nowrap',
+}
 
 /** Stable defaults, so a fresh array is not created on every render. */
 const NO_TRACKS: XPlayerTrack[] = []
@@ -267,6 +280,36 @@ export function XPlayer({
     [style, accent],
   )
 
+  /*
+   * Escape answers the resume offer the way Start over does: closeOffer, which
+   * leaves the stored position alone. It is handled here, on the container,
+   * because focus is on the container or on one of the card's buttons and both
+   * bubble to it, whereas a handler on the card would miss the first. It is
+   * not in useKeyboard: that hook is for shortcuts that act on the video.
+   *
+   * The other owners of the key win by arriving first, not by this test. An
+   * open menu stops Escape at document capture (useMenu), so it never gets
+   * here; in full screen the browser owns the key and takes the player out of
+   * it, so the offer is left alone then (`!state.fullscreen`). The
+   * `defaultPrevented` test is only a defence against a host's own handler -
+   * nothing in this repo prevents Escape.
+   */
+  const onEscape = (e: KeyboardEvent<HTMLDivElement>) => {
+    if (e.key === 'Escape' && resumeOffer !== null && !state.fullscreen && !e.defaultPrevented) {
+      closeOffer()
+    }
+  }
+
+  /*
+   * What the offer says aloud. The region below is mounted all the time and
+   * only its text changes: a polite live region that is inserted already
+   * holding its text is not reliably spoken, one whose content changes is.
+   * It is its own node, so it does not depend on the card's markup or on the
+   * stylesheet hiding the card's span at narrow widths.
+   */
+  const resumeSpoken = resumeOffer === null ? '' : `Resume from ${spokenTime(resumeOffer)}?`
+  // The button carries the time too: below 220px the card's own text is hidden.
+  const resumeName = resumeOffer === null ? undefined : `Resume from ${spokenTime(resumeOffer)}`
   const { ended, started, pendingPlay } = playback
   const waiting = state.waiting || (pendingPlay && !state.playing && !state.error)
   const showBigPlay =
@@ -281,6 +324,7 @@ export function XPlayer({
       role="region"
       aria-label={title ? `Video player: ${title}` : 'Video player'}
       data-xp-started={started ? 'true' : 'false'}
+      onKeyDown={onEscape}
     >
       <video
         ref={videoRef}
@@ -322,12 +366,21 @@ export function XPlayer({
 
       <Toast toast={toast} />
 
+      <div role="status" style={SR_ONLY}>
+        {resumeSpoken}
+      </div>
+
       {resumeOffer !== null && (
         <div className="xp-resume">
           <span>
             Resume from <strong>{formatTime(resumeOffer)}</strong>?
           </span>
-          <button type="button" className="xp-resume-primary" onClick={acceptOffer}>
+          <button
+            type="button"
+            className="xp-resume-primary"
+            aria-label={resumeName}
+            onClick={acceptOffer}
+          >
             Resume
           </button>
           <button type="button" className="xp-resume-ghost" onClick={closeOffer}>
