@@ -19,7 +19,19 @@
   display: block;
   width: 100%;
   aspect-ratio: 16 / 9;
+  /*
+   * Clipped, and not scrollable.
+   *
+   * The playhead layer is as wide as the bar and slides by up to its own width,
+   * so at the end of a video it reaches a whole player past the right edge.
+   * `hidden` hid that but made this a scroll container, so anything that
+   * scrolled an element inside it into view - focus, scrollIntoView, a
+   * screenshot tool - slid the whole player sideways inside its own frame.
+   * `clip` paints the same edge and cannot be scrolled. `hidden` stays as the
+   * fallback for a browser that does not know `clip`.
+   */
   overflow: hidden;
+  overflow: clip;
 
   /*
    * The player sizes itself against its own box, not the window.
@@ -56,7 +68,13 @@
  * Defence layer: keeps the host page's global rules out. Most themes and CSS
  * resets target button/input/svg, and some do it with !important, so the
  * !important flags here exist to outrank theirs. Our own rules use !important
- * for the same properties so they can still win against this reset.
+ * for the same properties so they can still win against this reset - and they
+ * must also be written `.xp-root .xp-foo`. This is 0-1-1, a bare `.xp-foo` is
+ * 0-1-0, and between two !importants the more specific one wins, so a
+ * class-only rule loses whatever it says. Big play, Try again, Resume, the
+ * subtitles button's on colour and every menu row's padding were all drawn as
+ * this reset for that reason. Layout that a tier overrides (display, width,
+ * height) is left on the bare class, so the tiers' own 0-1-0 rules still win.
  */
 .xp-root button,
 .xp-root input,
@@ -244,27 +262,31 @@
   bottom: 0;
 }
 
+/* Size and display stay class-only: the tiers below shrink and then hide it. */
 .xp-bigplay {
   display: grid;
   place-items: center;
   width: 78px;
   height: 78px;
-  padding: 0 0 0 4px !important;
-  border: 1px solid rgba(255, 255, 255, 0.22) !important;
   border-radius: 50%;
-  background: rgba(12, 13, 17, 0.68) !important;
   backdrop-filter: blur(20px) saturate(140%);
   -webkit-backdrop-filter: blur(20px) saturate(140%);
-  color: var(--xp-fg) !important;
   cursor: pointer;
-  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.45) !important;
   transition: transform 0.18s var(--xp-ease), background 0.18s var(--xp-ease);
 }
-.xp-bigplay:hover {
+.xp-root .xp-bigplay {
+  padding: 0 0 0 4px !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  background: rgba(12, 13, 17, 0.68) !important;
+  color: var(--xp-fg) !important;
+  box-shadow: 0 8px 40px rgba(0, 0, 0, 0.45) !important;
+}
+.xp-root .xp-bigplay:hover {
   transform: scale(1.06);
   background: rgba(12, 13, 17, 0.85) !important;
 }
-.xp-bigplay:active {
+/* Raised with the hover rule above, or a press would lose its scale to it. */
+.xp-root .xp-bigplay:active {
   transform: scale(0.97);
 }
 .xp-bigplay:focus-visible {
@@ -311,7 +333,7 @@
   font-size: 14px;
   color: var(--xp-fg-dim);
 }
-.xp-error-retry {
+.xp-root .xp-error-retry {
   padding: 9px 20px !important;
   border-radius: 999px;
   background: var(--xp-accent) !important;
@@ -342,6 +364,8 @@
   font-weight: 600;
   white-space: nowrap;
   pointer-events: none;
+  /* Where the animation leaves it, and where it sits when there is none. */
+  transform: translate(-50%, -50%);
   animation: xp-toast-in 0.9s var(--xp-ease) forwards;
 }
 @keyframes xp-toast-in {
@@ -394,8 +418,8 @@
     transform: translateY(8px);
   }
 }
-.xp-resume-primary,
-.xp-resume-ghost {
+.xp-root .xp-resume-primary,
+.xp-root .xp-resume-ghost {
   padding: 7px 14px !important;
   border-radius: 999px;
   font: inherit;
@@ -403,15 +427,15 @@
   cursor: pointer;
   white-space: nowrap;
 }
-.xp-resume-primary {
+.xp-root .xp-resume-primary {
   background: var(--xp-accent) !important;
   color: #06131c !important;
 }
-.xp-resume-ghost {
+.xp-root .xp-resume-ghost {
   border: 1px solid var(--xp-hairline) !important;
   color: var(--xp-fg-dim) !important;
 }
-.xp-resume-ghost:hover {
+.xp-root .xp-resume-ghost:hover {
   color: var(--xp-fg) !important;
 }
 
@@ -634,20 +658,20 @@
   min-width: 0;
 }
 
+/* Display stays class-only: data-xp-until hides these with a 0-1-0 rule. */
 .xp-btn {
   display: grid;
   place-items: center;
   width: 40px;
   height: 40px;
   flex: none;
-  padding: 0;
-  border: 0;
   border-radius: 10px;
-  background: transparent;
-  color: var(--xp-fg) !important;
   cursor: pointer;
   opacity: 0.92;
   transition: background 0.14s var(--xp-ease), opacity 0.14s var(--xp-ease), transform 0.14s var(--xp-ease);
+}
+.xp-root .xp-btn {
+  color: var(--xp-fg) !important;
 }
 .xp-btn:hover {
   background: rgba(255, 255, 255, 0.12) !important;
@@ -664,8 +688,8 @@
   width: 44px;
   height: 44px;
 }
-.xp-btn-on,
-.xp-btn-active {
+.xp-root .xp-btn-on,
+.xp-root .xp-btn-active {
   color: var(--xp-accent) !important;
 }
 /* Tooltip */
@@ -721,6 +745,8 @@
   align-items: center;
   cursor: pointer;
   touch-action: none;
+  /* So the tooltip can measure the bar in cqw. Unnamed: the tiers ask `xp`. */
+  container-type: inline-size;
 }
 .xp-seek:focus-visible {
   outline: none;
@@ -804,9 +830,21 @@
   transform: translateY(-50%) scale(1);
 }
 
+/*
+ * Centred on the pointer, and held inside the bar at its ends.
+ *
+ * Centred alone, half of it went past the player's edge near either end - 85px
+ * of a 170px frame, cut off by the root. The clamp needs the tooltip's own
+ * width, which is 170px with a frame and about 45 with the time alone, so it is
+ * done in the one place both widths are known without measuring anything: a
+ * translate, where 100% is the tooltip and 100cqw is the bar. The pointer
+ * writes only --xp-tip-x, the ratio along the bar, and nothing here asks for a
+ * layout.
+ */
 .xp-seek-tip {
   position: absolute;
   bottom: 22px;
+  left: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -817,7 +855,7 @@
   background: rgba(10, 11, 15, 0.94);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
-  transform: translateX(-50%);
+  transform: translateX(clamp(0px, calc(var(--xp-tip-x, 0) * 100cqw - 50%), calc(100cqw - 100%)));
   pointer-events: none;
   white-space: nowrap;
 }
@@ -1004,8 +1042,9 @@
   font-size: 12.5px !important;
   font-weight: 600 !important;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.01em;
-  line-height: 1;
+  /* !important too: the defence layer resets both with it. */
+  letter-spacing: 0.01em !important;
+  line-height: 1 !important;
 }
 .xp-quality-label {
   display: inline-block;
@@ -1053,6 +1092,12 @@
   -webkit-backdrop-filter: blur(24px) saturate(150%);
   box-shadow: 0 12px 44px rgba(0, 0, 0, 0.5);
   animation: xp-menu-in 0.16s var(--xp-ease);
+  /*
+   * Above the bar's own buttons. From 300px down the menu covers the bar, and
+   * the buttons after it in the document - full screen, positioned for its
+   * tooltip - were painted over it and took the taps meant for its lowest row.
+   */
+  z-index: 1;
 }
 @keyframes xp-menu-in {
   from {
@@ -1066,6 +1111,7 @@
   flex-direction: column;
 }
 
+/* Layout stays class-only: .xp-menu-option below overrides it at 0-1-0. */
 .xp-menu-item {
   display: flex;
   align-items: center;
@@ -1074,14 +1120,16 @@
   width: 100%;
   /* A long track name must shorten itself, not reflow the row onto two lines. */
   white-space: nowrap !important;
-  padding: 10px 12px !important;
   border-radius: 8px;
-  color: var(--xp-fg) !important;
   font: inherit;
-  font-size: 13.5px !important;
-  text-align: left !important;
   cursor: pointer;
   transition: background 0.12s var(--xp-ease);
+}
+.xp-root .xp-menu-item {
+  padding: 10px 12px !important;
+  color: var(--xp-fg) !important;
+  font-size: 13.5px !important;
+  text-align: left !important;
 }
 .xp-menu-item:hover {
   background: rgba(255, 255, 255, 0.1) !important;
@@ -1119,7 +1167,7 @@
   flex: none;
   color: var(--xp-accent);
 }
-.xp-menu-back {
+.xp-root .xp-menu-back {
   display: flex;
   align-items: center;
   gap: 8px;
@@ -1369,6 +1417,15 @@
     width: 44px;
     height: 44px;
   }
+  /*
+   * A menu row is aimed at like any button. !important because the defence
+   * layer sets min-height to 0 with it; the menu scrolls if the rows no
+   * longer fit, which is what its height cap is for.
+   */
+  .xp-root .xp-menu-item,
+  .xp-root .xp-menu-back {
+    min-height: 44px !important;
+  }
 }
 
 @media (hover: none) {
@@ -1397,5 +1454,14 @@
   }
   .xp-spinner {
     animation: xp-spin 0.75s linear infinite !important;
+  }
+  /*
+   * Shown still rather than faded. Cut to 0.01ms, the toast's animation ended
+   * on its last frame - opacity 0, held there by `forwards` - so every toast
+   * was invisible to anyone who had asked for less motion. It goes when the
+   * component removes it, 900ms later, which does not depend on the animation.
+   */
+  .xp-root .xp-toast {
+    animation: none !important;
   }
 }

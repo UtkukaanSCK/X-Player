@@ -106,7 +106,8 @@ export function SeekBar({
         tip.current.shown = true
         el.hidden = false
       }
-      el.style.left = `${ratio * 100}%`
+      // A ratio, not a position: the stylesheet centres and clamps it.
+      el.style.setProperty('--xp-tip-x', String(ratio))
       const seconds = ratio * duration
       const second = Math.floor(seconds)
       if (second !== tip.current.second) {
