@@ -1914,12 +1914,12 @@ await keys.close()
 /* ------------------------------------ a menu that takes the whole player */
 
 /*
- * From 300px down the menu covers the bar, and the full screen button, being
+ * From 400px down the menu covers the bar, and the full screen button, being
  * positioned and later in the document, was painted over it - and took the
  * taps meant for the right end of the menu's lowest row.
  */
 const coveredBy = []
-for (const w of [280, 200]) {
+for (const w of [390, 360, 280, 200]) {
   const small = await browser.newPage({ ...devices['iPhone 13'] })
   await small.goto(BASE, { waitUntil: 'networkidle' })
   await small.evaluate(([sel, px]) => {
@@ -1947,10 +1947,271 @@ for (const w of [280, 200]) {
   await small.close()
 }
 check(
-  'at 300px and below the open menu is on top of the bar it covers',
-  coveredBy.every((c) => c === ''),
+  'at 400px and below the open menu is on top of the bar it covers',
+  coveredBy.length === 4 && coveredBy.every((c) => c === ''),
   coveredBy.filter(Boolean).join(', '),
 )
+
+/* ------------------------------------- a menu that fits the player it is in */
+
+/*
+ * A menu row is 44px tall under a coarse pointer, but the menu's ceiling was
+ * written for 38px rows, so on a phone-sized player the menu's own height cap
+ * cut the rows off: at 390px it scrolled inside itself (131px client, 144px of
+ * content) and "Picture in picture" showed 84%. Where the menu fits it must
+ * not need to scroll at all; where it cannot (at 300px and below the player is
+ * shorter than the rows) it must scroll, and every row must be reachable by
+ * touch and by keyboard.
+ *
+ * Its own page, a touch-capable desktop viewport like the tight-player one
+ * further up: the player has to be exactly as wide as each step, inside a page
+ * with room.
+ */
+const fitPage = await browser.newPage({ viewport: { width: 1100, height: 900 }, hasTouch: true })
+await fitPage.goto(BASE, { waitUntil: 'networkidle' })
+await fitPage.locator('#ladder').scrollIntoViewIfNeeded()
+await fitPage.waitForTimeout(1200)
+const FIT_ROOT = LADDER_CASE + ' .xp-root'
+const SETTINGS = '.xp-settings'
+const QUALITY = '.xp-quality'
+
+/* What an open menu looks like to a viewer, row by row, once it has settled. */
+const menuProbe = async ([sel, scope]) => {
+  const root = document.querySelector(sel + ' .xp-root')
+  const menu = root.querySelector(scope + ' .xp-menu')
+  const rb = root.getBoundingClientRect()
+  const base = {
+    coarse: matchMedia('(pointer: coarse)').matches,
+    touch: navigator.maxTouchPoints > 0,
+    width: Math.round(rb.width),
+    rootH: rb.height,
+    rootScroll: root.scrollTop + root.scrollLeft,
+  }
+  if (!menu) return { ...base, menu: null, rows: [] }
+  await Promise.all(menu.getAnimations().map((a) => a.finished))
+  await new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))
+  const mb = menu.getBoundingClientRect()
+  const port = {
+    left: mb.left + menu.clientLeft,
+    top: mb.top + menu.clientTop,
+    right: mb.left + menu.clientLeft + menu.clientWidth,
+    bottom: mb.top + menu.clientTop + menu.clientHeight,
+  }
+  const share = (r, box) => {
+    const w = Math.min(r.right, box.right) - Math.max(r.left, box.left)
+    const h = Math.min(r.bottom, box.bottom) - Math.max(r.top, box.top)
+    return w > 0 && h > 0 ? (w * h) / (r.width * r.height) : 0
+  }
+  const rows = [...menu.querySelectorAll('[role="menuitem"], [role="menuitemradio"]')]
+    .filter((el) => el.getBoundingClientRect().width > 0)
+    .map((el) => {
+      const r = el.getBoundingClientRect()
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+      return {
+        label: el.textContent.trim().replace(/\s+/g, ' '),
+        h: r.height,
+        seen: Math.min(share(r, port), share(r, rb)),
+        hit: !!hit && el.contains(hit),
+        focused: el === document.activeElement,
+      }
+    })
+  return {
+    ...base,
+    menu: {
+      h: mb.height,
+      top: mb.top - rb.top,
+      bottom: mb.bottom - rb.top,
+      left: mb.left - rb.left,
+      right: mb.right - rb.left,
+      overflow: menu.scrollHeight - menu.clientHeight,
+    },
+    rows,
+  }
+}
+const probe = (scope) => fitPage.evaluate(menuProbe, [LADDER_CASE, scope])
+const fitWidth = async (w) => {
+  await fitPage.evaluate(
+    ([sel, px]) => {
+      document.querySelector(sel).style.width = px + 'px'
+    },
+    [FIT_ROOT, w],
+  )
+  await fitPage.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))))
+}
+const closeMenu = async () => {
+  if ((await fitPage.locator(LADDER_CASE + ' .xp-menu').count()) === 0) return
+  await fitPage.keyboard.press('Escape')
+  await fitPage.waitForSelector(LADDER_CASE + ' .xp-menu', { state: 'detached' })
+}
+const tapOpen = async (scope) => {
+  await closeMenu()
+  await fitPage.locator(FIT_ROOT).hover()
+  await fitPage.locator(`${LADDER_CASE} ${scope} .xp-btn`).tap()
+  await fitPage.waitForSelector(`${LADDER_CASE} ${scope} .xp-menu`)
+}
+const pct = (n) => Math.round(n * 100) + '%'
+
+/* Anything wrong with one menu, as a sentence for each thing. */
+const grade = (tag, p, into, { covers = false } = {}) => {
+  const at = `${p.width}px ${tag}`
+  if (!p.menu) return into.setup.push(`${at}: no menu`)
+  if (!p.coarse || !p.touch) into.setup.push(`${at}: pointer coarse ${p.coarse}, touch ${p.touch}`)
+  if (p.rows.length === 0) into.setup.push(`${at}: no rows`)
+  into.rows += p.rows.length
+  for (const r of p.rows) {
+    if (r.h < 43.99) into.short.push(`${at} "${r.label}" ${r.h.toFixed(1)}px`)
+  }
+  const m = p.menu
+  if (m.top < -0.5 || m.left < -0.5 || m.bottom > p.rootH + 0.5 || m.right > p.width + 0.5) {
+    into.outside.push(`${at} menu ${Math.round(m.left)},${Math.round(m.top)} to ${Math.round(m.right)},${Math.round(m.bottom)} in ${p.width}x${Math.round(p.rootH)}`)
+  }
+  if (p.rootScroll !== 0) into.rootScrolled.push(`${at} root scrolled ${p.rootScroll}px`)
+  if (covers && m.h < p.rootH - 13) into.shortMenu.push(`${at} menu ${Math.round(m.h)}px in a ${Math.round(p.rootH)}px player`)
+}
+const hidden = (tag, p, into) => {
+  for (const r of p.rows) {
+    if (r.seen < 0.999) into.hidden.push(`${p.width}px ${tag} "${r.label}" ${pct(r.seen)} visible`)
+    if (!r.hit) into.blocked.push(`${p.width}px ${tag} "${r.label}"`)
+  }
+}
+const newBucket = (...extra) => ({
+  setup: [],
+  rows: 0,
+  short: [],
+  outside: [],
+  rootScrolled: [],
+  hidden: [],
+  blocked: [],
+  ...Object.fromEntries(extra.map((k) => [k, []])),
+})
+
+/* ---- fit sweep: nothing needs to scroll, nothing is cut off */
+
+const fit = newBucket('scrolls')
+let qualityMenus = 0
+const FIT_WIDTHS = [600, 561, 560, 480, 412, 401, 400, 390, 375, 360, 320, 301]
+for (const w of FIT_WIDTHS) {
+  await fitWidth(w)
+  await tapOpen(SETTINGS)
+  const main = await probe(SETTINGS)
+  grade('settings', main, fit)
+  hidden('settings', main, fit)
+  if (main.menu && main.menu.overflow > 1) fit.scrolls.push(`${w}px settings scrolls by ${main.menu.overflow}px`)
+  await closeMenu()
+  const hasQuality = await fitPage.evaluate(
+    (sel) => document.querySelector(sel).getBoundingClientRect().width > 0,
+    `${LADDER_CASE} ${QUALITY} .xp-btn`,
+  )
+  if (hasQuality) {
+    qualityMenus++
+    await tapOpen(QUALITY)
+    const q = await probe(QUALITY)
+    grade('quality', q, fit)
+    hidden('quality', q, fit)
+    if (q.menu && q.menu.overflow > 1) fit.scrolls.push(`${w}px quality scrolls by ${q.menu.overflow}px`)
+    await closeMenu()
+  }
+}
+check(
+  'the fit sweep ran: a coarse pointer, and menus with rows in them',
+  fit.setup.length === 0 && fit.rows > FIT_WIDTHS.length * 2 && qualityMenus > 0,
+  fit.setup.slice(0, 4).join('; ') || `${fit.rows} rows over ${FIT_WIDTHS.length} widths, ${qualityMenus} quality menus`,
+)
+check('every menu row is at least 44px tall under a coarse pointer', fit.short.length === 0, fit.short.slice(0, 4).join('; '))
+check('a menu lies inside the player at every width, and nothing scrolls the player', fit.outside.length === 0 && fit.rootScrolled.length === 0, [...fit.outside, ...fit.rootScrolled].slice(0, 4).join('; '))
+check('a menu that has room for its rows does not scroll', fit.scrolls.length === 0, fit.scrolls.slice(0, 4).join('; '))
+check('every menu row is wholly visible, in the menu and in the player', fit.hidden.length === 0, fit.hidden.slice(0, 4).join('; '))
+check('and the centre of every row is the row', fit.blocked.length === 0, fit.blocked.slice(0, 4).join('; '))
+
+/* ---- scroll sweep: the player is shorter than its rows */
+
+const scrolled = newBucket('shortMenu', 'keys')
+const reachAll = async (tag, scope) => {
+  const n = (await probe(scope)).rows.length
+  for (let i = 0; i < n; i++) {
+    await fitPage.evaluate(
+      ([sel, sc, at]) => {
+        const rows = [...document.querySelector(sel + ' ' + sc + ' .xp-menu').querySelectorAll('[role^="menuitem"]')].filter(
+          (el) => el.getBoundingClientRect().width > 0,
+        )
+        rows[at].scrollIntoView({ block: 'nearest' })
+      },
+      [LADDER_CASE, scope, i],
+    )
+    const p = await probe(scope)
+    const r = p.rows[i]
+    if (r.seen < 0.999) scrolled.hidden.push(`${p.width}px ${tag} "${r.label}" ${pct(r.seen)} visible after scrolling to it`)
+    if (!r.hit) scrolled.blocked.push(`${p.width}px ${tag} "${r.label}"`)
+    if (p.rootScroll !== 0) scrolled.rootScrolled.push(`${p.width}px ${tag} scrolling to "${r.label}" scrolled the player`)
+  }
+  return n
+}
+/* Focus after every key: where it is, and how much of that row can be seen. */
+const walkKeys = async (tag, intoSpeed) => {
+  await closeMenu()
+  await fitPage.locator(`${LADDER_CASE} ${SETTINGS} .xp-btn`).focus()
+  await fitPage.keyboard.press('Enter')
+  await fitPage.waitForSelector(`${LADDER_CASE} ${SETTINGS} .xp-menu`)
+  if (intoSpeed) {
+    await fitPage.keyboard.press('ArrowDown')
+    await fitPage.keyboard.press('Enter')
+    await fitPage.waitForFunction(() => document.activeElement?.classList.contains('xp-menu-back'))
+    const landed = await fitPage.evaluate(() => document.activeElement?.textContent.trim())
+    if (landed !== 'Playback speed') scrolled.setup.push(`${tag}: Enter on the first row landed on "${landed}", not the speed panel`)
+  }
+  const first = await probe(SETTINGS)
+  const n = first.rows.length
+  const start = first.rows.findIndex((r) => r.focused)
+  const plan = []
+  for (let i = 0; i <= n; i++) plan.push(['ArrowDown', (start + 1 + i) % n])
+  plan.push(['End', n - 1], ['Home', 0], ['ArrowUp', n - 1])
+  let stops = 0
+  for (const [key, want] of plan) {
+    await fitPage.keyboard.press(key)
+    const p = await probe(SETTINGS)
+    const at = p.rows.findIndex((r) => r.focused)
+    stops++
+    if (at !== want) scrolled.keys.push(`${p.width}px ${tag} ${key}: focus on row ${at}, wanted ${want}`)
+    else if (p.rows[at].seen < 0.999) scrolled.hidden.push(`${p.width}px ${tag} ${key}: focused "${p.rows[at].label}" ${pct(p.rows[at].seen)} visible`)
+    if (p.rootScroll !== 0) scrolled.rootScrolled.push(`${p.width}px ${tag} ${key} scrolled the player`)
+  }
+  return { n, start, stops }
+}
+
+let scrollRows = 0
+let keyStops = 0
+let keyStarts = []
+const SCROLL_WIDTHS = [300, 260, 220, 160]
+for (const [w, intoSpeed] of [...SCROLL_WIDTHS.map((x) => [x, false]), [390, true], [300, true]]) {
+  const tag = intoSpeed ? 'speed' : 'main'
+  await fitWidth(w)
+  await tapOpen(SETTINGS)
+  if (intoSpeed) {
+    await fitPage.locator(`${LADDER_CASE} .xp-menu-item`, { hasText: 'Playback speed' }).tap()
+    await fitPage.waitForSelector(LADDER_CASE + ' .xp-menu-back')
+  }
+  const p = await probe(SETTINGS)
+  grade(tag, p, scrolled, { covers: true })
+  if (!p.menu || p.menu.overflow <= 1) scrolled.setup.push(`${w}px ${tag}: nothing to scroll`)
+  scrollRows += await reachAll(tag, SETTINGS)
+  const walked = await walkKeys(tag, intoSpeed)
+  keyStops += walked.stops
+  keyStarts.push(`${w}px ${tag}: ${walked.n} rows from ${walked.start}`)
+  if (walked.n === 0) scrolled.setup.push(`${w}px ${tag}: the key walk found no rows`)
+  await closeMenu()
+}
+check(
+  'the scroll sweep ran: a coarse pointer, rows to scroll to, keys pressed',
+  scrolled.setup.length === 0 && scrollRows > 0 && keyStops > 0,
+  scrolled.setup.slice(0, 4).join('; ') || `${scrollRows} rows reached, ${keyStops} keys pressed (${keyStarts.join('; ')})`,
+)
+check('rows stay at least 44px tall in a menu that scrolls', scrolled.short.length === 0, scrolled.short.slice(0, 4).join('; '))
+check('a menu in a short player takes the whole of it', scrolled.shortMenu.length === 0, scrolled.shortMenu.slice(0, 4).join('; '))
+check('a menu in a short player stays inside it', scrolled.outside.length === 0, scrolled.outside.slice(0, 4).join('; '))
+check('scrolling to a row is wholly seeing it, and never scrolls the player', scrolled.hidden.length === 0 && scrolled.rootScrolled.length === 0, [...scrolled.hidden, ...scrolled.rootScrolled].slice(0, 4).join('; '))
+check('and the centre of every row, once scrolled to, is the row', scrolled.blocked.length === 0, scrolled.blocked.slice(0, 4).join('; '))
+check('the arrow keys, Home and End visit every row and wrap, from Enter on the button', scrolled.keys.length === 0, scrolled.keys.slice(0, 4).join('; '))
+await fitPage.close()
 
 /* -------------------------------------- the player never scrolls itself */
 
