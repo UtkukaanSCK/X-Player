@@ -537,9 +537,9 @@
    * Anchored above the controls it needs the bar height plus its own, and a
    * 159x89 player has neither to spare - with 44px targets the banner came
    * out 166px tall against 21px of room, so both buttons ended up outside the
-   * player. Covering the bar costs nothing here: the surface gestures are
-   * already disabled while an offer is up, because answering it is the only
-   * thing to do.
+   * player. It covers the bar because there is no room for both, and the bar
+   * is hidden while it does so, below: a control you can see through the
+   * glass and cannot press is worse than one that is not there.
    */
   .xp-resume {
     left: 8px;
@@ -548,6 +548,39 @@
     gap: 6px;
     padding: 8px;
     font-size: 12px;
+  }
+  /*
+   * So nothing of the bar is left under the offer to aim at.
+   *
+   * The offer is translucent glass over a backdrop blur at z-index 8 and the
+   * controls are at 5, so on a 300px player with a coarse pointer the whole
+   * bar showed through it at full size - four 44px buttons and the seek bar,
+   * 32px under a coarse pointer - with the offer spanning y 77-161 and the
+   * bar y 117-163. None of them could be pressed, and none of them can be,
+   * because the offer has to take the taps in its own band or it could never
+   * be answered: elementFromPoint at the Settings button's centre answered
+   * button.xp-resume-ghost, so aiming at Settings dismissed the offer
+   * instead - the position survives, the chance to resume this session does
+   * not. Nothing in the bar's band is worth aiming at while the card is up,
+   * so nothing is drawn there. The big play button is not in that band - 52px
+   * at y 20-72 against the card's 77 - and stays pressable, as it should.
+   *
+   * Hidden rather than removed: the bar keeps its box, its height and its
+   * playhead, and it is back the moment the offer is answered. It leaves the
+   * accessibility tree and the tab order with the picture, which gives a
+   * keyboard and a screen reader the same answer a thumb gets, and the bar's
+   * gradient goes with it, so the card sits on the video. No !important,
+   * because the defence layer never sets visibility, so the buttons inherit
+   * this untouched. `:has()` because nothing on the root marks an offer being
+   * up - a browser without it is left with the bar it draws today. `:not()`
+   * because an offer can still be raised while a menu is open - a source
+   * swapped under one, for the frame it takes XPlayer to close the offer -
+   * and the bar is lifted to z-index 9 then, so it is above the card rather
+   * than under it. There is nothing misleading to hide in that frame, and
+   * hiding it would blank the open menu.
+   */
+  .xp-root:not(.xp-menu-open):has(.xp-resume) .xp-controls {
+    visibility: hidden;
   }
   /*
    * The question takes its own line and the two answers share the next one.
@@ -635,8 +668,10 @@
  * an open menu fell beneath them and could not be clicked: reopen a file and
  * go straight to the audio track, or open settings before the first play.
  * While a menu is open the viewer has asked for it, so the bar is lifted over
- * both for exactly that long; the offer stays where it is, and can still be
- * answered once the menu closes.
+ * both for exactly that long; by then the offer is already gone, because
+ * opening a menu closes it outright, so the lift is really for the centred
+ * layer - the big play button and the error panel, which sit at 7, are not
+ * closed by a menu, and are what the bar would otherwise still fall under.
  */
 .xp-root.xp-menu-open .xp-controls {
   z-index: 9;

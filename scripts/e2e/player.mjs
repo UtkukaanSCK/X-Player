@@ -430,6 +430,44 @@ const streamTip = await page.evaluate((sel) => {
 check('a stream draws no frame preview', streamTip.frame === false, JSON.stringify(streamTip))
 check('a stream still shows the time under the pointer', /^[0-9]+:[0-9][0-9]/.test(streamTip.time ?? ''), streamTip.time)
 
+/*
+ * The time alone is a much narrower tooltip than the frame - 40 to 46px here
+ * against 170 - so a clamp written for one width is wrong for the other. The
+ * frame is checked further down, beside tipInside.
+ */
+const streamEdges = []
+for (const frac of [0.003, 0.997]) {
+  const x = hlsBar.x + hlsBar.width * frac
+  await page.mouse.move(x, hlsBar.y + hlsBar.height / 2)
+  await page.waitForTimeout(300)
+  streamEdges.push(
+    await page.evaluate(
+      ([sel, px]) => {
+        const seek = document.querySelector(sel + ' .xp-seek').getBoundingClientRect()
+        const tip = document.querySelector(sel + ' .xp-seek-tip').getBoundingClientRect()
+        return {
+          w: Math.round(tip.width),
+          left: Math.round(tip.left - seek.left),
+          right: Math.round(seek.right - tip.right),
+          // How far the tooltip had to move off the pointer to stay in.
+          off: Math.round(tip.left + tip.width / 2 - px),
+        }
+      },
+      [HLS, x],
+    ),
+  )
+}
+check(
+  'the time-only tooltip stays inside the bar at both ends',
+  streamEdges.every((e) => e.w > 0 && e.left >= -1 && e.right >= -1),
+  JSON.stringify(streamEdges),
+)
+check(
+  'without being pushed further in than it needs',
+  streamEdges[0].left <= 2 && streamEdges[1].right <= 2,
+  JSON.stringify(streamEdges),
+)
+
 /* ------------------------------------------------------- single source */
 
 // With one file there is nothing to choose between, so the control must not
@@ -592,6 +630,425 @@ await page.evaluate(
 
 check('a settings menu was opened over each kind of blocking panel', menuRowsSeen > 0, menuRowsSeen + ' visible rows')
 check('and every visible row of it can be clicked', menuBlocked.length === 0, menuBlocked.slice(0, 6).join(', '))
+
+/* ------------------------------------- a menu takes the resume offer with it */
+
+/*
+ * Opening a menu closes the resume offer.
+ *
+ * Both want the same band. The offer spans nearly the whole width at the bar's
+ * height plus 28px, the menu opens upward from the bar into exactly that, and
+ * the offer takes pointer events because it has to - it cannot be answered
+ * otherwise. So the rows beneath it did nothing: reopen a file you have watched
+ * before and go straight to the audio track or the speed. The desktop app's
+ * playback suite stopped dead there, thirty seconds of waiting on a row that
+ * `.xp-resume` was intercepting.
+ *
+ * A viewer who has reached the menu walked past the offer to get there, so the
+ * offer is the one that goes, by the same call its own Start over makes - the
+ * remembered position must not end up in a third state that nothing else in the
+ * player knows about.
+ *
+ * The offer here is the real one, not markup injected like the probes above:
+ * what is under test is React state, which no amount of appended HTML can
+ * change. Only the length of the file is faked. A remembered position has to be
+ * past 15 seconds and short of 95% of the duration, and the demo clip runs 14 -
+ * so the element is told it is ten minutes long and asked to report its
+ * metadata again, which is the path a reopened file takes. The single-source
+ * case is the one that remembers positions at all; every other case on the
+ * harness turns it off.
+ *
+ * Its own page: a faked duration and a written storage key are exactly the kind
+ * of state that must not reach the checks around it.
+ */
+const SINGLE = '[data-case="single"]'
+const SAVED_KEY = 'xp:pos:dev-single' // the storageKey the harness gives that case
+const resumePage = await browser.newPage({ viewport: { width: 1200, height: 900 } })
+await resumePage.goto(BASE, { waitUntil: 'networkidle' })
+await resumePage.locator('#single').scrollIntoViewIfNeeded()
+await resumePage.waitForTimeout(1200)
+await resumePage.evaluate(
+  ([sel, key, at]) => {
+    const video = document.querySelector(sel + ' video.xp-video')
+    // An own property shadows the prototype's getter; the element is otherwise
+    // the real one, still loaded from the real file.
+    Object.defineProperty(video, 'duration', { configurable: true, get: () => 600 })
+    window.localStorage.setItem(key, String(at))
+    video.dispatchEvent(new Event('loadedmetadata'))
+  },
+  [SINGLE, SAVED_KEY, 83],
+)
+await resumePage.waitForTimeout(400)
+const offered = await resumePage.evaluate((sel) => {
+  const card = document.querySelector(sel + ' .xp-resume')
+  return card ? card.textContent.trim() : null
+}, SINGLE)
+check(
+  'a file with a remembered position offers to resume from it',
+  offered !== null && offered.includes('1:23'),
+  offered ?? 'no offer, so nothing below is being tested',
+)
+
+await resumePage.locator(SINGLE + ' .xp-root').hover()
+await resumePage.locator(SINGLE + ' .xp-settings .xp-btn').click()
+await resumePage.waitForTimeout(400)
+const withMenu = await resumePage.evaluate(
+  ([sel, key]) => {
+    const root = document.querySelector(sel + ' .xp-root')
+    const rows = [...root.querySelectorAll('.xp-menu .xp-menu-item')].filter(
+      (row) => row.getBoundingClientRect().width > 0,
+    )
+    return {
+      offer: !!root.querySelector('.xp-resume'),
+      stored: window.localStorage.getItem(key),
+      rows: rows.map((row) => {
+        const r = row.getBoundingClientRect()
+        const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+        const mine = at === row || row.contains(at)
+        return { name: row.textContent.trim(), under: mine ? null : at?.className?.toString().split(' ')[0] ?? 'nothing' }
+      }),
+    }
+  },
+  [SINGLE, SAVED_KEY],
+)
+check(
+  'opening a menu takes the resume offer with it',
+  withMenu.rows.length > 0 && withMenu.offer === false,
+  `${withMenu.rows.length} row(s) open, offer ${withMenu.offer ? 'still up' : 'gone'}`,
+)
+/*
+ * Dismissed, not erased. Nothing on the card erases the saved position any
+ * more: Resume seeks to it and Start over leaves it where it is. Taking the
+ * offer away for a menu must leave the stored value as it was.
+ */
+check(
+  'and the position survives, the way it survives Start over',
+  withMenu.stored !== null,
+  withMenu.stored !== null ? `still saved at ${withMenu.stored}s` : 'erased',
+)
+
+/*
+ * The offer was one of the three things pinning the controls open, so losing it
+ * must not let them fade out from under the menu that is still up. The pointer
+ * leaves the player first: hovering it would keep the bar up on its own and this
+ * would prove nothing.
+ */
+await resumePage.mouse.move(5, 5)
+await resumePage.waitForTimeout(3200)
+const stillUp = await resumePage.evaluate((sel) => {
+  const root = document.querySelector(sel + ' .xp-root')
+  return { shown: root.classList.contains('xp-show'), menu: !!root.querySelector('.xp-menu') }
+}, SINGLE)
+check(
+  'and the controls stay up with the menu open and the offer gone',
+  stillUp.shown && stillUp.menu,
+  JSON.stringify(stillUp),
+)
+
+/*
+ * Clicked for real, with the timeout the app's run hit: elementFromPoint says
+ * what is on top, and this says whether the row can be used.
+ */
+const rowClick = await resumePage
+  .locator(SINGLE + ' .xp-menu-item', { hasText: 'Playback speed' })
+  .click({ timeout: 5000 })
+  .then(() => '')
+  .catch((err) => String(err.message).split('\n').find((line) => line.includes('intercepts')) ?? 'click timed out')
+await resumePage.waitForTimeout(300)
+const speedRows = await resumePage.locator(SINGLE + ' .xp-menu-option', { hasText: '1.5x' }).count()
+check(
+  'and the row in that band opens the panel it names',
+  withMenu.rows.length > 0 && withMenu.rows.every((row) => row.under === null) && rowClick === '' && speedRows > 0,
+  rowClick.trim() ||
+    withMenu.rows.map((row) => row.name + (row.under ? ' under .' + row.under : '')).join(', ') + `, ${speedRows} speeds`,
+)
+/* Nothing of this is left for the pages that come after. */
+await resumePage.evaluate((key) => window.localStorage.removeItem(key), SAVED_KEY)
+await resumePage.close()
+
+/* ------------------------------- the bar under the offer, on a tight player */
+
+/*
+ * Nothing of the control bar shows through the offer that covers it.
+ *
+ * From 300px down the offer is drawn over the bar rather than above it - left
+ * and right 8px, bottom 8px - because a 159x89 player has nowhere to stack the
+ * two, and the stylesheet justifies that by saying answering the offer is the
+ * only thing left to do. The bar did not know that. It stayed lit and 44px
+ * tall underneath, and the offer's background is translucent glass over a
+ * backdrop blur, so a viewer could see Settings and full screen through it and
+ * aim at them - while every tap in that band landed on the offer, whose
+ * right-hand answer is Start over. Aiming at Settings forgot where you were.
+ *
+ * The interception is not the bug: the offer has to take the taps in its own
+ * band or it could never be answered. What must not be there is a target worth
+ * aiming at. So this asks what can be seen in that band, and names what a tap
+ * there would have reached instead. The seek bar is counted with the buttons -
+ * it lands in the same band, and a drag on it under the offer does as little.
+ *
+ * The bar is measured before the offer arrives too, for two reasons: a fix
+ * that takes the bar away leaves nothing to look up afterwards, and a check
+ * that found no bar in the first place would pass by measuring nothing.
+ *
+ * The duration is stubbed here exactly as it is for the menu checks above -
+ * the hook ignores a saved position under 15 seconds and the demo clip runs 14
+ * - so a pass is no evidence that real 15-second media was ever involved. The
+ * coarse pointer is the one thing not faked: it is asserted, because the 44px
+ * targets that make the bar worth aiming at exist only under it.
+ */
+const TIGHT = 300
+/*
+ * A touch-capable desktop viewport rather than a phone: the player has to be
+ * 300px wide inside a page with room to hold it, and what the tiers and the
+ * target sizes care about is the pointer, not the screen.
+ */
+const tightPage = await browser.newPage({ viewport: { width: 1100, height: 900 }, hasTouch: true })
+await tightPage.goto(BASE, { waitUntil: 'networkidle' })
+await tightPage.locator('#single').scrollIntoViewIfNeeded()
+await tightPage.waitForTimeout(1200)
+await tightPage.evaluate(
+  ([sel, w]) => {
+    document.querySelector(sel + ' .xp-root').style.width = w + 'px'
+  },
+  [SINGLE, TIGHT],
+)
+/* The bar is up only while something holds it up; the offer does that itself. */
+await tightPage.locator(SINGLE + ' .xp-root').hover()
+await tightPage.waitForTimeout(400)
+
+/*
+ * Everything in the control bar a viewer could aim at, with what each one's
+ * centre actually hits. Visible means visible to a viewer rather than merely
+ * present: the controls fade by opacity on an ancestor and a tier can take one
+ * away with display: none, so the whole chain is walked.
+ */
+const tightProbe = (sel) => {
+  const root = document.querySelector(sel + ' .xp-root')
+  const box = root.getBoundingClientRect()
+  const visible = (el) => {
+    for (let node = el; node && node !== document.body; node = node.parentElement) {
+      const s = getComputedStyle(node)
+      if (s.display === 'none' || s.visibility !== 'visible' || Number(s.opacity) === 0) return false
+    }
+    const r = el.getBoundingClientRect()
+    return r.width > 0 && r.height > 0
+  }
+  /*
+   * What a hit element is, in words: its own class if it has one, else the
+   * nearest thing above it that does - a tap that reaches the offer's own
+   * text has reached the offer, and "span" alone would not say so.
+   */
+  const describe = (el) => {
+    if (!el) return 'nothing'
+    const named = el.classList.length ? el : el.closest('[class]')
+    return named ? named.tagName.toLowerCase() + '.' + named.classList[0] : el.tagName.toLowerCase()
+  }
+  const offer = root.querySelector('.xp-resume')
+  const o = offer && offer.getBoundingClientRect()
+  return {
+    width: Math.round(box.width),
+    coarse: matchMedia('(pointer: coarse)').matches,
+    shown: root.classList.contains('xp-show'),
+    offer: offer && {
+      text: offer.textContent.trim(),
+      top: Math.round(o.top - box.top),
+      bottom: Math.round(o.bottom - box.top),
+    },
+    controls: [...root.querySelectorAll('.xp-controls [aria-label], .xp-controls [role="slider"]')].map((el) => {
+      const r = el.getBoundingClientRect()
+      const at = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+      return {
+        name: el.getAttribute('aria-label') ?? el.className.toString().split(' ')[0],
+        seen: visible(el),
+        top: Math.round(r.top - box.top),
+        bottom: Math.round(r.bottom - box.top),
+        takes: at === el || el.contains(at) ? null : describe(at),
+      }
+    }),
+  }
+}
+
+const tightBefore = await tightPage.evaluate(tightProbe, SINGLE)
+const tightBarSeen = tightBefore.controls.filter((c) => c.seen)
+check(
+  'a coarse pointer and a 300px player give the offer a bar to cover',
+  tightBefore.coarse && tightBefore.width === TIGHT && tightBarSeen.length >= 3,
+  `${tightBefore.width}px, coarse ${tightBefore.coarse}, bar shows ${tightBarSeen.map((c) => c.name).join(', ') || 'nothing'}`,
+)
+
+await tightPage.evaluate(
+  ([sel, key, at]) => {
+    const video = document.querySelector(sel + ' video.xp-video')
+    /* An own property shadows the prototype's getter, as above. */
+    Object.defineProperty(video, 'duration', { configurable: true, get: () => 600 })
+    window.localStorage.setItem(key, String(at))
+    video.dispatchEvent(new Event('loadedmetadata'))
+  },
+  [SINGLE, SAVED_KEY, 83],
+)
+await tightPage.waitForTimeout(400)
+const tightUp = await tightPage.evaluate(tightProbe, SINGLE)
+/* Measured against where the bar was, so a fix that hides it cannot empty this. */
+const tightCovered = tightUp.offer
+  ? tightBarSeen.filter((c) => c.bottom > tightUp.offer.top && c.top < tightUp.offer.bottom)
+  : []
+check(
+  'and the offer lands on top of that bar rather than above it',
+  tightUp.offer !== null && tightUp.offer.text.includes('1:23') && tightCovered.length >= 3,
+  tightUp.offer
+    ? `offer y ${tightUp.offer.top}-${tightUp.offer.bottom} over ${tightCovered.map((c) => c.name).join(', ') || 'nothing'}`
+    : 'no offer, so nothing below is being tested',
+)
+
+const tightShowsThrough = tightUp.offer
+  ? tightUp.controls.filter(
+      (c) => c.bottom > tightUp.offer.top && c.top < tightUp.offer.bottom && (c.seen || c.takes === null),
+    )
+  : []
+check(
+  'no part of the bar shows through the offer that covers it',
+  tightCovered.length >= 3 && tightShowsThrough.length === 0,
+  tightShowsThrough
+    .map((c) => `${c.name} ${c.seen ? 'is visible' : 'is hidden'} and a tap there reaches ${c.takes ?? 'it'}`)
+    .join('; ') || 'the offer has that band to itself',
+)
+
+/*
+ * And the bar is a bar again as soon as the offer is answered: a fix that hid
+ * it for good would pass the check above and ruin the player.
+ */
+await tightPage.locator(SINGLE + ' .xp-resume-primary').click()
+await tightPage.waitForTimeout(500)
+await tightPage.locator(SINGLE + ' .xp-root').hover()
+await tightPage.waitForTimeout(400)
+const tightAnswered = await tightPage.evaluate(tightProbe, SINGLE)
+const tightBack = tightAnswered.controls.filter((c) => c.seen)
+/* Clicked for real: elementFromPoint says what is on top, a click says it works. */
+const tightMenuFailed = await tightPage
+  .locator(SINGLE + ' .xp-settings .xp-btn')
+  .click({ timeout: 4000 })
+  .then(() => '')
+  .catch(
+    (err) =>
+      String(err.message)
+        .split('\n')
+        .find((line) => line.includes('intercepts')) ?? 'Settings could not be clicked',
+  )
+await tightPage.waitForTimeout(300)
+const tightMenuRows = await tightPage.locator(SINGLE + ' .xp-menu-item').count()
+check(
+  'and the bar is back the moment the offer is answered',
+  tightAnswered.offer === null && tightBack.length >= tightBarSeen.length && tightMenuFailed === '' && tightMenuRows > 0,
+  tightMenuFailed ||
+    `${tightBack.map((c) => c.name).join(', ') || 'nothing'} visible, shown ${tightAnswered.shown}, ${tightMenuRows} menu row(s)`,
+)
+/* Nothing of this is left for the pages that come after. */
+await tightPage.evaluate((key) => window.localStorage.removeItem(key), SAVED_KEY)
+await tightPage.close()
+
+/* --------------------------- the keyboard when the offer covers the bar */
+
+/*
+ * The offer arriving must not throw focus out of the player.
+ *
+ * Taking the bar away under the offer is what stops a viewer aiming at a
+ * control that cannot be pressed - the checks above - but a control that is
+ * taken away while it holds focus is blurred by the browser, and focus lands
+ * on the document body. The player's key listener is on its own container, so
+ * that it never steals an embedding page's shortcuts, which means from the
+ * body nothing reaches it at all: Space scrolls the page instead of toggling
+ * play, the arrows do not seek, and the way back in is as many Tab presses as
+ * the page has links. Focus recovery does not catch it either - it moves focus
+ * only when the element that had it has left the document, and a control that
+ * is merely not shown is still in it.
+ *
+ * So both halves are asserted, and neither is about how the bar is hidden:
+ * where focus ends up, and whether a key still drives the player once it is
+ * there. The second is what makes the first worth having - focus parked on
+ * something inert inside the player would pass the first alone.
+ *
+ * Space is the cheapest key to ask with. The container listener calls
+ * preventDefault on every key it handles, so a press that arrives is one
+ * toggle and not two, and a press that does not arrive scrolls the page -
+ * which is measured as well, because it is the proof that the press went to
+ * the document rather than to the player.
+ *
+ * Keys are known to be alive while an offer is up: with focus on the root,
+ * which nothing hides, Space starts playback. So a dead keyboard here is
+ * about focus and nothing else. The duration is stubbed as it is above, and a
+ * pass is still no evidence about real 15-second media.
+ */
+const focusWhere = (sel) => {
+  const root = document.querySelector(sel + ' .xp-root')
+  const active = document.activeElement
+  const video = root.querySelector('video.xp-video')
+  const offer = root.querySelector('.xp-resume')
+  return {
+    active: active ? active.tagName.toLowerCase() + [...active.classList].map((c) => '.' + c).join('') : 'nothing',
+    inside: !!active && root.contains(active),
+    offer: offer && offer.textContent.trim(),
+    paused: video.paused,
+    /* The harness page, not the player: a Space that misses scrolls it. */
+    scrollY: Math.round(window.scrollY),
+  }
+}
+
+const offerFocusPage = await browser.newPage({ viewport: { width: 1100, height: 900 }, hasTouch: true })
+await offerFocusPage.goto(BASE, { waitUntil: 'networkidle' })
+await offerFocusPage.locator('#single').scrollIntoViewIfNeeded()
+await offerFocusPage.waitForTimeout(1200)
+await offerFocusPage.evaluate(
+  ([sel, w]) => {
+    const root = document.querySelector(sel + ' .xp-root')
+    root.style.width = w + 'px'
+    /* Muted, so nothing can refuse a play started from a key press. */
+    root.querySelector('video.xp-video').muted = true
+  },
+  [SINGLE, TIGHT],
+)
+/* A control has to be on screen before it can be focused. */
+await offerFocusPage.locator(SINGLE + ' .xp-root').hover()
+await offerFocusPage.waitForTimeout(300)
+await offerFocusPage.locator(SINGLE + ' .xp-bar .xp-btn-play').focus()
+await offerFocusPage.waitForTimeout(200)
+const offerFocusBefore = await offerFocusPage.evaluate(focusWhere, SINGLE)
+await offerFocusPage.evaluate(
+  ([sel, key, at]) => {
+    const video = document.querySelector(sel + ' video.xp-video')
+    Object.defineProperty(video, 'duration', { configurable: true, get: () => 600 })
+    window.localStorage.setItem(key, String(at))
+    video.dispatchEvent(new Event('loadedmetadata'))
+  },
+  [SINGLE, SAVED_KEY, 83],
+)
+await offerFocusPage.waitForTimeout(500)
+const offerFocusUp = await offerFocusPage.evaluate(focusWhere, SINGLE)
+check(
+  'the play button held focus on a tight player, and then the offer arrived',
+  offerFocusBefore.inside &&
+    offerFocusBefore.active.includes('xp-btn-play') &&
+    offerFocusBefore.offer === null &&
+    offerFocusUp.offer !== null &&
+    offerFocusUp.offer.includes('1:23') &&
+    offerFocusUp.paused,
+  `focus on ${offerFocusBefore.active} with ${offerFocusBefore.offer ?? 'no offer'}, then ${offerFocusUp.offer ?? 'still no offer'}, paused ${offerFocusUp.paused}`,
+)
+check(
+  'the offer appearing leaves focus inside the player',
+  offerFocusUp.inside,
+  `focus was ${offerFocusBefore.active}, after the offer ${offerFocusUp.active}`,
+)
+await offerFocusPage.keyboard.press(' ')
+await offerFocusPage.waitForTimeout(700)
+const offerFocusKeyed = await offerFocusPage.evaluate(focusWhere, SINGLE)
+check(
+  'and a shortcut still reaches the player with the offer up',
+  offerFocusKeyed.paused === false && offerFocusKeyed.scrollY === offerFocusUp.scrollY,
+  `Space with the offer up: paused ${offerFocusUp.paused} -> ${offerFocusKeyed.paused}, the page scrolled ${offerFocusKeyed.scrollY - offerFocusUp.scrollY}px, focus on ${offerFocusKeyed.active}`,
+)
+/* Nothing of this is left for the pages that come after. */
+await offerFocusPage.evaluate((key) => window.localStorage.removeItem(key), SAVED_KEY)
+await offerFocusPage.close()
 
 /* ------------------------------------------------- one home per control */
 
@@ -957,6 +1414,19 @@ await menuPhone.waitForTimeout(500)
 await menuPhone.locator('[data-case="ladder"] .xp-settings .xp-btn').tap()
 await menuPhone.waitForTimeout(400)
 /*
+ * A menu row is a target like any button on the bar, and it was 19px tall on a
+ * phone: its padding was written as a bare `.xp-menu-item` rule, which loses to
+ * the defence layer's `.xp-root button { padding: 0 !important }`. Measured on
+ * both the main panel and a sub-panel, so the back row is counted too.
+ */
+const menuRowHeights = () =>
+  menuPhone.evaluate(() =>
+    [...document.querySelectorAll('[data-case="ladder"] .xp-menu [role^="menuitem"]')]
+      .filter((el) => el.getBoundingClientRect().width > 0)
+      .map((el) => `${el.textContent.trim()}:${Math.round(el.getBoundingClientRect().height)}`),
+  )
+const phoneRows = await menuRowHeights()
+/*
  * Clicked directly rather than through a locator. What this check measures is
  * whether the panel fits once it is open; Playwright's actionability wait was
  * failing on a 19px row for reasons that had nothing to do with that, and
@@ -994,6 +1464,12 @@ check(
   opened
     ? panel && `${panel.over}px outside, ${panel.rows} rows, scrollable ${panel.scrollable}`
     : 'the speed panel never opened - this check tested nothing',
+)
+phoneRows.push(...(await menuRowHeights()))
+check(
+  'every menu row is a 44px target on a phone',
+  phoneRows.length > 3 && phoneRows.every((row) => Number(row.split(':').pop()) >= 44),
+  phoneRows.join(', '),
 )
 await menuPhone.close()
 
@@ -1164,6 +1640,400 @@ check(
 )
 
 await phone.close()
+
+/* ------------------------------------ what the stylesheet says is drawn */
+
+/*
+ * The defence layer is `.xp-root button`, specificity 0-1-1, and it resets
+ * background, border, padding, colour and shadow with !important. A rule
+ * written with a bare class is 0-1-0 and loses however many !importants it
+ * carries, so the big play button, Try again and Resume were drawn with no
+ * background at all, and the subtitles button looked the same on and off.
+ * Every check above asks where a control is; none asked what it looks like,
+ * which is how the stylesheet and the screen disagreed for this long.
+ */
+const TRANSPARENT = 'rgba(0, 0, 0, 0)'
+const look = await browser.newPage({ viewport: { width: 1200, height: 900 } })
+await look.goto(BASE, { waitUntil: 'networkidle' })
+await look.locator('#ladder').scrollIntoViewIfNeeded()
+await look.waitForTimeout(1200)
+const backgrounds = await look.evaluate(
+  ([sel, errorHtml, resumeHtml]) => {
+    const root = document.querySelector(sel + ' .xp-root')
+    const error = document.createElement('div')
+    error.className = 'xp-center xp-center-blocking xp-center-error xp-probe'
+    error.innerHTML = errorHtml
+    const resume = document.createElement('div')
+    resume.className = 'xp-resume xp-probe'
+    resume.innerHTML = resumeHtml
+    root.append(error, resume)
+    const bg = (s) => {
+      const el = root.querySelector(s)
+      return el ? getComputedStyle(el).backgroundColor : 'missing'
+    }
+    const seen = { bigplay: bg('.xp-bigplay'), retry: bg('.xp-error-retry'), resume: bg('.xp-resume-primary') }
+    root.querySelectorAll('.xp-probe').forEach((n) => n.remove())
+    return seen
+  },
+  [LADDER_CASE, ERROR_MARKUP, RESUME_MARKUP],
+)
+check(
+  'big play, Try again and Resume are drawn with their backgrounds',
+  Object.values(backgrounds).every((c) => c !== TRANSPARENT && c !== 'missing'),
+  JSON.stringify(backgrounds),
+)
+
+const subtitlesButton = () =>
+  look.evaluate((sel) => {
+    const b = document.querySelector(sel + ' .xp-bar button[aria-pressed]')
+    return b && { on: b.getAttribute('aria-pressed'), color: getComputedStyle(b).color }
+  }, LADDER_CASE)
+const subsOff = await subtitlesButton()
+await look.locator(LADDER_CASE + ' .xp-root').focus()
+await look.keyboard.press('c')
+await look.waitForTimeout(300)
+const subsOn = await subtitlesButton()
+check(
+  'the subtitles button looks different on and off',
+  subsOff?.on === 'false' && subsOn?.on === 'true' && subsOff.color !== subsOn.color,
+  `${JSON.stringify(subsOff)} -> ${JSON.stringify(subsOn)}`,
+)
+
+await look.locator(LADDER_CASE + ' .xp-root').hover()
+await look.locator(LADDER_CASE + ' .xp-settings .xp-btn').click()
+await look.waitForTimeout(300)
+const deskRows = await look.evaluate((sel) =>
+  [...document.querySelectorAll(sel + ' .xp-menu .xp-menu-item')]
+    .filter((el) => el.getBoundingClientRect().width > 0)
+    .map((el) => getComputedStyle(el).paddingLeft),
+  LADDER_CASE,
+)
+check(
+  'a menu row keeps its padding',
+  deskRows.length > 0 && deskRows.every((p) => Number.parseFloat(p) > 0),
+  deskRows.join(', '),
+)
+await look.close()
+
+/* ----------------------------------------------- which press does what */
+
+/*
+ * Only the primary button is a click on the picture. A right click to open the
+ * browser's own menu - to copy the video address, say - paused the video on the
+ * way. Fullscreen is counted rather than entered, so the page stays as it is.
+ */
+const COUNT_FULLSCREEN = () => {
+  window.__xpFullscreenAsks = 0
+  Element.prototype.requestFullscreen = function () {
+    window.__xpFullscreenAsks += 1
+    return Promise.resolve()
+  }
+}
+const presses = await browser.newPage({ viewport: { width: 1200, height: 900 } })
+await presses.addInitScript(COUNT_FULLSCREEN)
+await presses.goto(BASE, { waitUntil: 'networkidle' })
+await presses.locator('#ladder').scrollIntoViewIfNeeded()
+await presses.waitForTimeout(1200)
+const isPaused = (p) => p.evaluate((sel) => document.querySelector(sel).paused, V)
+await presses.evaluate((sel) => {
+  document.querySelector(sel).muted = true
+}, V)
+await presses.locator(LADDER_CASE + ' .xp-bigplay').click()
+await presses.waitForTimeout(800)
+const pictureBox = await presses.locator(LADDER_CASE + ' .xp-root').boundingBox()
+const pictureX = pictureBox.x + pictureBox.width / 2
+const pictureY = pictureBox.y + pictureBox.height / 3
+const playingBefore = !(await isPaused(presses))
+/*
+ * Right only. A middle click also starts the browser's autoscroll on Windows,
+ * which then swallows the next click - so the left click below would be
+ * measuring the browser rather than the player.
+ */
+await presses.mouse.click(pictureX, pictureY, { button: 'right' })
+await presses.waitForTimeout(500)
+const playingAfterRight = !(await isPaused(presses))
+await presses.mouse.click(pictureX, pictureY)
+await presses.waitForTimeout(500)
+const pausedByLeft = await isPaused(presses)
+check(
+  'a right click on the picture leaves playback alone',
+  playingBefore && playingAfterRight,
+  `playing before ${playingBefore}, after ${playingAfterRight}`,
+)
+check('and a left click still toggles it', pausedByLeft)
+await presses.mouse.dblclick(pictureX, pictureY)
+await presses.waitForTimeout(300)
+check(
+  'a mouse double click still asks for full screen',
+  (await presses.evaluate(() => window.__xpFullscreenAsks)) >= 1,
+  `${await presses.evaluate(() => window.__xpFullscreenAsks)} asks`,
+)
+await presses.close()
+
+/*
+ * A double tap on the sides of the picture skips ten seconds. The browser also
+ * reports it as a dblclick, which is the mouse gesture for full screen, so the
+ * skip took the player full screen as well. The skip is asserted too: without
+ * it, a double tap that never registered would pass by asking for nothing.
+ */
+const taps = await browser.newPage({ ...devices['iPhone 13'] })
+await taps.addInitScript(COUNT_FULLSCREEN)
+await taps.goto(BASE, { waitUntil: 'networkidle' })
+await taps.locator('#ladder').scrollIntoViewIfNeeded()
+await taps.waitForTimeout(1200)
+await taps.evaluate((sel) => {
+  document.querySelector(sel).muted = true
+}, V)
+await taps.locator(LADDER_CASE + ' .xp-bigplay').tap()
+await taps.waitForTimeout(800)
+await taps.evaluate((sel) => document.querySelector(sel).pause(), V)
+const tb = await taps.locator(LADDER_CASE + ' .xp-root').boundingBox()
+const tapBefore = await taps.evaluate((sel) => document.querySelector(sel).currentTime, V)
+await taps.touchscreen.tap(tb.x + tb.width * 0.85, tb.y + tb.height * 0.35)
+await taps.waitForTimeout(120)
+await taps.touchscreen.tap(tb.x + tb.width * 0.85, tb.y + tb.height * 0.35)
+await taps.waitForTimeout(600)
+const tapAfter = await taps.evaluate(
+  (sel) => ({ t: document.querySelector(sel).currentTime, asks: window.__xpFullscreenAsks }),
+  V,
+)
+check(
+  'a double tap skips forward ten seconds',
+  tapAfter.t - tapBefore > 8,
+  `${tapBefore.toFixed(2)} -> ${tapAfter.t.toFixed(2)}`,
+)
+check('and does not also go full screen', tapAfter.asks === 0, `${tapAfter.asks} full screen asks`)
+await taps.close()
+
+/* ------------------------------------------------ toasts, held still */
+
+/*
+ * Reduced motion shortened every animation to 0.01ms, and the toast's
+ * animation ends on its fade-out frame with `forwards`, so for anyone who asked
+ * for less motion every toast was invisible from the first frame - "+10s",
+ * "Muted", "1.5x", all of it.
+ */
+const calm = await browser.newPage({ viewport: { width: 1200, height: 900 }, reducedMotion: 'reduce' })
+await calm.goto(BASE, { waitUntil: 'networkidle' })
+await calm.locator('#ladder').scrollIntoViewIfNeeded()
+await calm.waitForTimeout(1200)
+await calm.locator(LADDER_CASE + ' .xp-root').focus()
+await calm.keyboard.press('ArrowDown')
+await calm.waitForTimeout(150)
+const stillToast = await calm.evaluate((sel) => {
+  const root = document.querySelector(sel + ' .xp-root')
+  const toast = root.querySelector('.xp-toast')
+  if (!toast) return null
+  const r = root.getBoundingClientRect()
+  const t = toast.getBoundingClientRect()
+  return {
+    reduced: matchMedia('(prefers-reduced-motion: reduce)').matches,
+    text: toast.textContent,
+    opacity: getComputedStyle(toast).opacity,
+    dx: Math.round(t.left + t.width / 2 - (r.left + r.width / 2)),
+    dy: Math.round(t.top + t.height / 2 - (r.top + r.height / 2)),
+  }
+}, LADDER_CASE)
+check(
+  'with reduced motion a toast is shown, and centred',
+  !!stillToast && stillToast.reduced && stillToast.opacity === '1' && Math.abs(stillToast.dx) <= 1 && Math.abs(stillToast.dy) <= 1,
+  JSON.stringify(stillToast),
+)
+await calm.waitForTimeout(1200)
+check('and it still goes away', (await calm.locator(LADDER_CASE + ' .xp-toast').count()) === 0)
+await calm.close()
+
+/* ------------------------------------------------ a menu and its keys */
+
+/*
+ * The arrow keys inside an open menu belonged to the player: ArrowDown turned
+ * the volume down and ArrowRight seeked, while focus stayed where it was. They
+ * move through the rows now, and Left steps back out of a sub-panel. Volume and
+ * position are asserted unchanged, because a key that both moved focus and
+ * reached the player would pass a focus check alone.
+ */
+const keys = await browser.newPage({ viewport: { width: 1200, height: 900 } })
+await keys.goto(BASE, { waitUntil: 'networkidle' })
+await keys.locator('#ladder').scrollIntoViewIfNeeded()
+await keys.waitForTimeout(1200)
+const menuFocus = () =>
+  keys.evaluate(
+    ([sel, video]) => {
+      const menu = document.querySelector(sel + ' .xp-menu')
+      const v = document.querySelector(video)
+      const items = menu
+        ? [...menu.querySelectorAll('[role^="menuitem"]')].filter((el) => el.getBoundingClientRect().width > 0)
+        : []
+      return {
+        at: items.indexOf(document.activeElement),
+        count: items.length,
+        back: !!menu?.querySelector('.xp-menu-back'),
+        volume: v.volume,
+        t: v.currentTime,
+      }
+    },
+    [LADDER_CASE, V],
+  )
+await keys.locator(LADDER_CASE + ' .xp-root').hover()
+await keys.locator(LADDER_CASE + ' .xp-settings .xp-btn').click()
+await keys.waitForTimeout(300)
+const keysStart = await menuFocus()
+const trail = []
+for (const key of ['ArrowDown', 'ArrowDown', 'ArrowUp', 'End', 'Home', 'ArrowRight', 'ArrowLeft']) {
+  await keys.keyboard.press(key)
+  await keys.waitForTimeout(80)
+  trail.push((await menuFocus()).at)
+}
+const last = keysStart.count - 1
+check(
+  'the arrow keys, Home and End move through an open menu',
+  keysStart.count > 1 && trail.join() === [0, 1, 0, last, 0, 0, 0].join(),
+  `${keysStart.count} rows, focus went ${trail.join(' ')}`,
+)
+await keys.keyboard.press('Enter')
+await keys.waitForTimeout(250)
+const inSpeed = await menuFocus()
+await keys.keyboard.press('ArrowDown')
+await keys.waitForTimeout(80)
+const speedNext = await menuFocus()
+await keys.keyboard.press('ArrowLeft')
+await keys.waitForTimeout(250)
+const backOut = await menuFocus()
+check(
+  'Left steps back out of a sub-panel',
+  inSpeed.back && inSpeed.at === 0 && speedNext.at === 1 && !backOut.back && backOut.at >= 0,
+  JSON.stringify({ inSpeed: inSpeed.at, next: speedNext.at, backOut }),
+)
+check(
+  'and none of those keys reached the player',
+  backOut.volume === keysStart.volume && backOut.t === keysStart.t,
+  `volume ${keysStart.volume} -> ${backOut.volume}, position ${keysStart.t} -> ${backOut.t}`,
+)
+await keys.close()
+
+/* ------------------------------------ a menu that takes the whole player */
+
+/*
+ * From 300px down the menu covers the bar, and the full screen button, being
+ * positioned and later in the document, was painted over it - and took the
+ * taps meant for the right end of the menu's lowest row.
+ */
+const coveredBy = []
+for (const w of [280, 200]) {
+  const small = await browser.newPage({ ...devices['iPhone 13'] })
+  await small.goto(BASE, { waitUntil: 'networkidle' })
+  await small.evaluate(([sel, px]) => {
+    document.querySelector(sel + ' .xp-root').style.width = px + 'px'
+  }, [LADDER_CASE, w])
+  await small.locator('#ladder').scrollIntoViewIfNeeded()
+  await small.waitForTimeout(1000)
+  await small.locator(LADDER_CASE + ' .xp-settings .xp-btn').tap()
+  await small.waitForTimeout(400)
+  coveredBy.push(
+    await small.evaluate(
+      ([sel, px]) => {
+        const root = document.querySelector(sel + ' .xp-root')
+        const menu = root.querySelector('.xp-menu')
+        const full = root.querySelector('.xp-bar button[aria-label="Full screen"]')
+        if (!menu || !full || full.getBoundingClientRect().width === 0) return `${px}px: nothing to test`
+        const b = full.getBoundingClientRect()
+        const hit = document.elementFromPoint(b.left + b.width / 2, b.top + b.height / 2)
+        if (menu.contains(hit)) return ''
+        return `${px}px: ${hit?.closest('[aria-label]')?.getAttribute('aria-label') ?? hit?.tagName} on top`
+      },
+      [LADDER_CASE, w],
+    ),
+  )
+  await small.close()
+}
+check(
+  'at 300px and below the open menu is on top of the bar it covers',
+  coveredBy.every((c) => c === ''),
+  coveredBy.filter(Boolean).join(', '),
+)
+
+/* -------------------------------------- the player never scrolls itself */
+
+/*
+ * The playhead layer is the width of the bar and slides by up to its own
+ * width, so at the end of a video it reaches a whole player past the right
+ * edge. `overflow: hidden` hides that, but it is still a scroll container, so
+ * anything that scrolled an element inside into view - focus, scrollIntoView,
+ * a screenshot tool - slid the whole player sideways inside its own frame.
+ */
+const slide = await browser.newPage({ viewport: { width: 1200, height: 900 } })
+await slide.goto(BASE, { waitUntil: 'networkidle' })
+await slide.locator('#ladder').scrollIntoViewIfNeeded()
+await slide.waitForTimeout(1200)
+const slid = await slide.evaluate(async (sel) => {
+  const root = document.querySelector(sel + ' .xp-root')
+  const video = root.querySelector('video.xp-video')
+  await new Promise((done) => {
+    video.addEventListener('seeked', done, { once: true })
+    video.currentTime = video.duration
+  })
+  await new Promise((done) => setTimeout(done, 200))
+  const handle = root.querySelector('.xp-seek-handle')
+  const overhang = Math.round(handle.getBoundingClientRect().right - root.getBoundingClientRect().right)
+  handle.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+  root.scrollLeft = 300
+  return { overhang, scrollLeft: root.scrollLeft }
+}, LADDER_CASE)
+check(
+  'nothing inside can scroll the player sideways',
+  slid.overhang > 100 && slid.scrollLeft === 0,
+  `playhead layer ${slid.overhang}px past the edge, player scrolled ${slid.scrollLeft}px`,
+)
+await slide.close()
+
+/* ----------------------------------------- the preview at the bar's ends */
+
+/*
+ * The preview is centred on the pointer, which near either end of the bar put
+ * half of it outside the player - a 170px frame with 85px of it cut off. It is
+ * clamped now; in the middle it must still sit on the pointer.
+ */
+const tipPage = await browser.newPage({ viewport: { width: 1200, height: 900 } })
+await tipPage.goto(BASE, { waitUntil: 'networkidle' })
+await tipPage.locator('#ladder').scrollIntoViewIfNeeded()
+await tipPage.waitForTimeout(1200)
+const tipBar = await tipPage.locator(LADDER_CASE + ' .xp-seek').boundingBox()
+const tipInside = []
+for (const frac of [0.5, 0.003, 0.997]) {
+  const x = tipBar.x + tipBar.width * frac
+  await tipPage.mouse.move(x, tipBar.y + tipBar.height / 2)
+  await tipPage.waitForTimeout(1000)
+  tipInside.push(
+    await tipPage.evaluate(
+      ([sel, px, at]) => {
+        const seek = document.querySelector(sel + ' .xp-seek').getBoundingClientRect()
+        const el = document.querySelector(sel + ' .xp-seek-tip')
+        const tip = el.getBoundingClientRect()
+        const frame = el.querySelector('.xp-seek-frame')
+        return {
+          at,
+          frame: !!frame && !frame.hidden,
+          w: Math.round(tip.width),
+          left: Math.round(tip.left - seek.left),
+          right: Math.round(seek.right - tip.right),
+          off: Math.round(tip.left + tip.width / 2 - px),
+        }
+      },
+      [LADDER_CASE, x, frac],
+    ),
+  )
+}
+check(
+  'the frame preview stays inside the bar at both ends',
+  tipInside.every((t) => t.frame && t.left >= -1 && t.right >= -1),
+  JSON.stringify(tipInside.slice(1)),
+)
+check(
+  'and sits on the pointer in the middle, and against the edge at the ends',
+  Math.abs(tipInside[0].off) <= 1 && tipInside[1].left <= 2 && tipInside[2].right <= 2,
+  JSON.stringify(tipInside),
+)
+await tipPage.close()
 
 await browser.close()
 if (failures.length) {
