@@ -1115,9 +1115,16 @@
    * 280px panel above a 46px bar needs a player 340px tall to sit in - taller
    * than a phone-width one ever is, so its first rows went behind the root's
    * overflow: hidden and could not be reached at all. It scrolls now instead.
+   *
+   * The 24px is the 12px gap above the button, the controls' 8px bottom padding
+   * and the button's own offset in the bar, which leaves 5px above the menu on
+   * touch at 560px and under, 8px above that, and 7-10px with a mouse. It was
+   * 40, which cut the last row by 1-7px on a 401-412px player. Three 44px rows
+   * are 146px with their padding; that is 139.5px of room above the bar at
+   * 360px wide, so from 400px down the menu covers the bar instead (below).
    */
   max-width: min(340px, 100cqw - 16px);
-  max-height: min(280px, 100cqh - var(--xp-bar-h) - 40px);
+  max-height: min(280px, 100cqh - var(--xp-bar-h) - 24px);
   overflow-y: auto;
   padding: 6px;
   border: 1px solid var(--xp-hairline);
@@ -1128,7 +1135,7 @@
   box-shadow: 0 12px 44px rgba(0, 0, 0, 0.5);
   animation: xp-menu-in 0.16s var(--xp-ease);
   /*
-   * Above the bar's own buttons. From 300px down the menu covers the bar, and
+   * Above the bar's own buttons. From 400px down the menu covers the bar, and
    * the buttons after it in the document - full screen, positioned for its
    * tooltip - were painted over it and took the taps meant for its lowest row.
    */
@@ -1352,22 +1359,6 @@
     width: 62px;
     height: 62px;
   }
-}
-
-@container xp (max-width: 300px) {
-  .xp-controls {
-    padding: 14px 6px 6px;
-  }
-  [data-xp-until='tight'] {
-    display: none;
-  }
-}
-
-@container xp (max-width: 300px) {
-  .xp-bigplay {
-    width: 52px;
-    height: 52px;
-  }
 
   /*
    * At these widths the menu takes the player instead of sitting above the bar.
@@ -1383,8 +1374,18 @@
    * containing block, which spans the player's width and sits at its bottom -
    * so the menu can be given the whole box. Covering the bar is fine while it
    * is open: the bar is what you used to get here.
+   *
+   * It starts at 400px, not 300, because that is where the rows stop fitting
+   * above the bar. Three 44px rows are 146px; above the bar they fit only on a
+   * player 215px tall or more (383px wide), and a 390px one gave them 133.4px,
+   * which left the Picture in picture row 84% visible, 48% at 360px and gone
+   * at 320px. Covering the bar they fit from 281px wide, and the same move
+   * fixes the mouse's 301-381px scroll. A 360px player has 139.5px above the
+   * bar and 190.5px when it is covered. Every pointer, and the quality menu
+   * as well as settings.
    */
-  .xp-settings {
+  .xp-settings,
+  .xp-quality {
     position: static;
   }
   .xp-menu {
@@ -1394,6 +1395,22 @@
     min-width: 0;
     max-width: none;
     max-height: calc(100cqh - 12px);
+  }
+}
+
+@container xp (max-width: 300px) {
+  .xp-controls {
+    padding: 14px 6px 6px;
+  }
+  [data-xp-until='tight'] {
+    display: none;
+  }
+}
+
+@container xp (max-width: 300px) {
+  .xp-bigplay {
+    width: 52px;
+    height: 52px;
   }
 }
 
@@ -1454,8 +1471,9 @@
   }
   /*
    * A menu row is aimed at like any button. !important because the defence
-   * layer sets min-height to 0 with it; the menu scrolls if the rows no
-   * longer fit, which is what its height cap is for.
+   * layer sets min-height to 0 with it. Three rows fit by covering the bar
+   * from 400px down to 301px; where they still do not (300px and under, the
+   * speed panel) the menu takes the player's whole height and scrolls.
    */
   .xp-root .xp-menu-item,
   .xp-root .xp-menu-back {
