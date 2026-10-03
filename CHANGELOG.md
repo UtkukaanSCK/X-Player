@@ -2,6 +2,17 @@
 
 ## Unreleased
 
+- Fixed: on a player 300px wide or narrower, the resume offer covered a control
+  bar that could not be pressed. The offer is translucent, so the bar showed
+  through at full size, and a tap aimed at Settings landed on the offer and
+  dismissed it. The bar is now hidden while the offer is up, and for keyboard
+  and screen-reader users it leaves the tab order and the accessibility tree
+  with it, coming back when the offer is answered; the big play button stays
+  pressable. Focus also no longer falls to the page when the bar is hidden under
+  a focused control. Before, Space scrolled the host page instead of toggling
+  play, and getting back into the player took 43 Tab presses. A control the
+  stylesheet hides now counts as gone and focus returns to the player. Browsers
+  without checkVisibility keep the old behaviour.
 - Fixed: a screen reader was told nothing when the player offered to resume. The
   card had no role and no name, so at the narrowest width the only thing in the
   accessibility tree was two buttons, Resume and Start over, with nothing saying
