@@ -2329,6 +2329,67 @@ check('and the element holding focus is one a viewer can see and hit', tabProble
 check('and none of those keys reached the player', tabProblems.player.length === 0, tabProblems.player.slice(0, 4).join('; '))
 
 /*
+ * Tab from the button of an open menu is not Tab from a row: with focus still
+ * on the button it goes forward into the first row, and must not be taken for
+ * a Tab that leaves the menu.
+ */
+const intoProblems = { setup: [], into: [], seen: [] }
+let intoRuns = 0
+await tabPage.evaluate(
+  ([sel, px]) => {
+    document.querySelector(sel).style.width = px + 'px'
+  },
+  [LADDER_CASE + ' .xp-root', 390],
+)
+await tabPage.waitForTimeout(250)
+for (const scope of ['.xp-settings', '.xp-quality']) {
+  const at = `390px ${scope.slice(4)}`
+  const btn = tabPage.locator(`${LADDER_CASE} ${scope} .xp-btn`)
+  if (!(await btn.isVisible())) {
+    intoProblems.setup.push(`${at}: no button`)
+    continue
+  }
+  await btn.focus()
+  await tabPress('Enter')
+  const opened = await tabState(scope)
+  if (opened.menus !== 1 || !opened.onButton) {
+    intoProblems.setup.push(`${at}: after Enter ${opened.menus} menus, focus ${opened.onButton ? 'on' : 'off'} the button`)
+    if (opened.menus > 0) await tabPress('Escape')
+    continue
+  }
+  intoRuns++
+  await tabPress('Tab')
+  const row = await tabPage.evaluate(
+    ([sel, scope]) => {
+      const menu = document.querySelector(sel + ' ' + scope + ' .xp-menu')
+      const on = document.activeElement
+      const first = menu?.querySelector('[role^="menuitem"]')
+      const r = on.getBoundingClientRect()
+      const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+      return {
+        menus: document.querySelectorAll(sel + ' .xp-menu').length,
+        first: !!first && on === first,
+        seen: r.width > 0 && !!hit && on.contains(hit),
+        name: on.getAttribute('aria-label') ?? on.textContent.trim(),
+      }
+    },
+    [LADDER_CASE, scope],
+  )
+  if (row.menus !== 1 || !row.first) {
+    intoProblems.into.push(`${at}: ${row.menus} menu(s), focus on ${row.name}, not the first row`)
+  }
+  if (!row.seen) intoProblems.seen.push(`${at}: ${row.name} is not what its own centre hits`)
+  if ((await tabPage.locator(`${LADDER_CASE} .xp-menu`).count()) > 0) await tabPress('Escape')
+}
+check(
+  'the forward-Tab check ran: menus open with focus on the button, before the key',
+  intoProblems.setup.length === 0 && intoRuns === 2,
+  intoProblems.setup.slice(0, 4).join('; ') || `${intoRuns} runs`,
+)
+check("and Tab from the open menu's button goes into its first row", intoProblems.into.length === 0, intoProblems.into.slice(0, 4).join('; '))
+check('and that row is one the viewer can see', intoProblems.seen.length === 0, intoProblems.seen.slice(0, 4).join('; '))
+
+/*
  * Closing the menu when focus leaves its wrapper must not close it on a press
  * that merely lands on the menu's own padding: the browser moves focus from
  * there to the nearest focusable ancestor, the player root, and that looks
