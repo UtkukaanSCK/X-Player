@@ -33,77 +33,121 @@ await page.waitForTimeout(2500)
 
 /* ------------------------------------------------------------------ contrast */
 
-const contrast = await page.evaluate(
-  ({ normal, large }) => {
-    const lin = (c) => {
-      const v = c / 255
-      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)
-    }
-    const parse = (value) => {
-      const n = value.match(/[\d.]+/g)?.map(Number)
-      return n && n.length >= 3 ? { r: n[0], g: n[1], b: n[2], a: n.length > 3 ? n[3] : 1 } : null
-    }
-    const lum = ({ r, g, b }) => 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
-    const over = (fg, bg) => ({
-      r: fg.r * fg.a + bg.r * (1 - fg.a),
-      g: fg.g * fg.a + bg.g * (1 - fg.a),
-      b: fg.b * fg.a + bg.b * (1 - fg.a),
-      a: 1,
-    })
-    /** The first ancestor that actually paints something. */
-    const backdrop = (el) => {
-      let node = el
-      while (node) {
-        const bg = parse(getComputedStyle(node).backgroundColor)
-        if (bg && bg.a > 0.95) return bg
-        node = node.parentElement
-      }
-      return { r: 0, g: 0, b: 0, a: 1 }
-    }
+/*
+ * Every colour-dependent scan runs under both schemes. The site follows the
+ * system preference, so a pass in one scheme says nothing about the other.
+ * `setScheme` also asserts the emulation took: a scan that ran in the wrong
+ * scheme would pass silently.
+ */
+const SCHEMES = ['light', 'dark']
 
-    const worst = []
-    for (const el of document.querySelectorAll('body *')) {
-      // Only elements holding their own visible words.
-      const own = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim().length > 0)
-      if (!own) continue
-      const style = getComputedStyle(el)
-      if (style.visibility === 'hidden' || style.display === 'none') continue
-      const box = el.getBoundingClientRect()
-      if (box.width < 2 || box.height < 2) continue
-      // sr-only text is not painted, so it has nothing to contrast against.
-      if (box.width <= 1 && box.height <= 1) continue
+async function setScheme(scheme) {
+  await page.emulateMedia({ colorScheme: scheme })
+  const took = await page.evaluate(
+    (s) => window.matchMedia(`(prefers-color-scheme: ${s})`).matches,
+    scheme,
+  )
+  check(`the ${scheme} scheme is the one being measured`, took)
+  // The site transitions colours; scanning mid-fade would read in-between values.
+  await page.waitForTimeout(300)
+}
 
-      const fg = parse(style.color)
-      if (!fg) continue
-      const solid = fg.a < 1 ? over(fg, backdrop(el)) : fg
-      const bg = backdrop(el)
-      const a = lum(solid) + 0.05
-      const b = lum(bg) + 0.05
-      const ratio = Math.max(a, b) / Math.min(a, b)
-
-      const size = parseFloat(style.fontSize)
-      const bold = Number(style.fontWeight) >= 700
-      const threshold = size >= 24 || (bold && size >= 18.66) ? large : normal
-      if (ratio < threshold) {
-        worst.push({
-          text: (el.textContent ?? '').trim().slice(0, 42),
-          color: style.color,
-          size: Math.round(size * 10) / 10,
-          ratio: Math.round(ratio * 100) / 100,
-          needs: threshold,
-        })
-      }
+const scanContrast = ({ normal, large }) => {
+  const lin = (c) => {
+    const v = c / 255
+    return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)
+  }
+  const parse = (value) => {
+    const n = value.match(/[\d.]+/g)?.map(Number)
+    return n && n.length >= 3 ? { r: n[0], g: n[1], b: n[2], a: n.length > 3 ? n[3] : 1 } : null
+  }
+  const lum = ({ r, g, b }) => 0.2126 * lin(r) + 0.7152 * lin(g) + 0.0722 * lin(b)
+  const over = (fg, bg) => ({
+    r: fg.r * fg.a + bg.r * (1 - fg.a),
+    g: fg.g * fg.a + bg.g * (1 - fg.a),
+    b: fg.b * fg.a + bg.b * (1 - fg.a),
+    a: 1,
+  })
+  /** The first ancestor that actually paints something. */
+  const backdrop = (el) => {
+    let node = el
+    while (node) {
+      const bg = parse(getComputedStyle(node).backgroundColor)
+      if (bg && bg.a > 0.95) return bg
+      node = node.parentElement
     }
-    return worst
-  },
-  { normal: AA_NORMAL, large: AA_LARGE },
-)
+    return { r: 0, g: 0, b: 0, a: 1 }
+  }
 
-check(
-  'every painted string clears its AA threshold',
-  contrast.length === 0,
-  contrast.length ? JSON.stringify(contrast.slice(0, 4)) : 'checked against the colour actually behind it',
-)
+  const worst = []
+  let scanned = 0
+  for (const el of document.querySelectorAll('body *')) {
+    // Only elements holding their own visible words.
+    const own = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim().length > 0)
+    if (!own) continue
+    const style = getComputedStyle(el)
+    if (style.visibility === 'hidden' || style.display === 'none') continue
+    const box = el.getBoundingClientRect()
+    if (box.width < 2 || box.height < 2) continue
+    // sr-only text is not painted, so it has nothing to contrast against.
+    if (box.width <= 1 && box.height <= 1) continue
+
+    const fg = parse(style.color)
+    if (!fg) continue
+    scanned += 1
+    const solid = fg.a < 1 ? over(fg, backdrop(el)) : fg
+    const bg = backdrop(el)
+    const a = lum(solid) + 0.05
+    const b = lum(bg) + 0.05
+    const ratio = Math.max(a, b) / Math.min(a, b)
+
+    const size = parseFloat(style.fontSize)
+    const bold = Number(style.fontWeight) >= 700
+    const threshold = size >= 24 || (bold && size >= 18.66) ? large : normal
+    if (ratio < threshold) {
+      worst.push({
+        text: (el.textContent ?? '').trim().slice(0, 42),
+        color: style.color,
+        size: Math.round(size * 10) / 10,
+        ratio: Math.round(ratio * 100) / 100,
+        needs: threshold,
+      })
+    }
+  }
+  return { scanned, worst }
+}
+
+const contrastArgs = { normal: AA_NORMAL, large: AA_LARGE }
+
+for (const scheme of SCHEMES) {
+  await setScheme(scheme)
+  const { scanned, worst } = await page.evaluate(scanContrast, contrastArgs)
+  check(`contrast (${scheme}): the scan saw text`, scanned > 20, `${scanned} strings`)
+  check(
+    `every painted string clears its AA threshold (${scheme})`,
+    worst.length === 0,
+    worst.length ? JSON.stringify(worst.slice(0, 4)) : 'checked against the colour actually behind it',
+  )
+
+  /* The scan has to be able to fail: put pale grey on white where the page
+     paints, confirm it is reported, take it away again. */
+  await page.evaluate(() => {
+    const probe = document.createElement('p')
+    probe.id = 'contrast-probe'
+    probe.textContent = 'low contrast probe'
+    probe.style.cssText =
+      'position:fixed;top:0;left:0;z-index:99999;margin:0;padding:8px;font-size:16px;' +
+      'color:#ccc;background-color:#fff'
+    document.body.appendChild(probe)
+  })
+  const probed = await page.evaluate(scanContrast, contrastArgs)
+  check(
+    `contrast (${scheme}): the scan reports a low-contrast string`,
+    probed.worst.some((w) => w.text === 'low contrast probe'),
+    `${probed.worst.length} reported`,
+  )
+  await page.evaluate(() => document.getElementById('contrast-probe')?.remove())
+}
 
 /* ---------------------------------------------------------- heading structure */
 
@@ -156,6 +200,8 @@ check('exactly one option is checked per group', groups.every((g) => g.checked =
  * nothing is still in the tab order - a keyboard user lands on a download link
  * that is not on the screen.
  */
+// Scheme-independent, so it runs in the light scheme the page starts in.
+await setScheme('light')
 await page.evaluate(() => window.scrollTo(0, 0))
 await page.waitForTimeout(400)
 /*
@@ -188,6 +234,8 @@ for (let i = 0; i < 45; i += 1) {
     }
   })
   if (!at) break
+  // <nextjs-portal> is the dev server's error-overlay host; it does not exist in the export.
+  if (at.tag === 'nextjs-portal') continue
   reached.add(`${at.tag}:${at.label}`)
   if (at.opacity < 0.1 || !at.onScreen) invisible.push(at)
 }
@@ -199,41 +247,54 @@ check(
   invisible.length ? JSON.stringify(invisible.slice(0, 4)) : `${reached.size} controls, all on screen`,
 )
 
-/* -------------------------------------------------------- overflow, four sizes */
+/* ------------------------------------------- overflow, five sizes, both schemes */
 
-for (const width of [390, 768, 1024, 1440]) {
-  await page.setViewportSize({ width, height: 900 })
-  await page.waitForTimeout(600)
-  const bad = await page.evaluate(() => {
-    const root = document.documentElement
-    /*
-     * Only text that is actually lost.
-     *
-     * An earlier version flagged anything wider than its box, which caught
-     * every progress bar and scaled inner element on the page - overflowing a
-     * fixed box is how those are built. What costs a reader something is
-     * overflow that is hidden with no ellipsis to show for it: the words are
-     * simply gone. Scrollable regions are fine, they can be reached.
-     */
-    const cut = [...document.querySelectorAll('body *')]
-      .filter((el) => {
-        const style = getComputedStyle(el)
-        if (style.display === 'none' || style.visibility === 'hidden') return false
-        if (!['hidden', 'clip'].includes(style.overflowX)) return false
-        if (style.textOverflow === 'ellipsis') return false
-        // sr-only is a 1px clipped box by construction; that is the technique,
-        // not a defect, and its text is meant for listeners rather than readers.
-        if (el.clientWidth <= 1 || el.clientHeight <= 1) return false
-        if (getComputedStyle(el).clipPath !== 'none') return false
-        const holdsText = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())
-        if (!holdsText) return false
-        return el.scrollWidth > el.clientWidth + 1 && el.clientWidth > 0
-      })
-      .map((el) => `"${el.textContent.trim().slice(0, 18)}" in ${el.tagName.toLowerCase()}`)
-    return { page: root.scrollWidth - root.clientWidth, cut: cut.slice(0, 4) }
-  })
-  check(`no horizontal overflow at ${width}px`, bad.page <= 1, `${bad.page}px`)
-  check(`no text is cut off at ${width}px`, bad.cut.length === 0, bad.cut.join(', ') || 'clean')
+for (const scheme of SCHEMES) {
+  await setScheme(scheme)
+  for (const width of [320, 390, 768, 1024, 1440]) {
+    await page.setViewportSize({ width, height: 900 })
+    await page.waitForTimeout(600)
+    const bad = await page.evaluate(() => {
+      const root = document.documentElement
+      /*
+       * Only text that is actually lost.
+       *
+       * An earlier version flagged anything wider than its box, which caught
+       * every progress bar and scaled inner element on the page - overflowing a
+       * fixed box is how those are built. What costs a reader something is
+       * overflow that is hidden with no ellipsis to show for it: the words are
+       * simply gone. Scrollable regions are fine, they can be reached.
+       */
+      const cut = [...document.querySelectorAll('body *')]
+        .filter((el) => {
+          const style = getComputedStyle(el)
+          if (style.display === 'none' || style.visibility === 'hidden') return false
+          if (!['hidden', 'clip'].includes(style.overflowX)) return false
+          if (style.textOverflow === 'ellipsis') return false
+          // sr-only is a 1px clipped box by construction; that is the technique,
+          // not a defect, and its text is meant for listeners rather than readers.
+          if (el.clientWidth <= 1 || el.clientHeight <= 1) return false
+          if (getComputedStyle(el).clipPath !== 'none') return false
+          const holdsText = [...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())
+          if (!holdsText) return false
+          return el.scrollWidth > el.clientWidth + 1 && el.clientWidth > 0
+        })
+        .map((el) => `"${el.textContent.trim().slice(0, 18)}" in ${el.tagName.toLowerCase()}`)
+      return {
+        page: root.scrollWidth - root.clientWidth,
+        cut: cut.slice(0, 4),
+        width: window.innerWidth,
+        elements: document.querySelectorAll('body *').length,
+      }
+    })
+    check(
+      `overflow scan (${scheme}, ${width}px): viewport took and page has content`,
+      bad.width === width && bad.elements > 50,
+      `${bad.width}px, ${bad.elements} elements`,
+    )
+    check(`no horizontal overflow at ${width}px (${scheme})`, bad.page <= 1, `${bad.page}px`)
+    check(`no text is cut off at ${width}px (${scheme})`, bad.cut.length === 0, bad.cut.join(', ') || 'clean')
+  }
 }
 
 /* ------------------------------------------------------------- touch targets */
@@ -248,54 +309,79 @@ for (const width of [390, 768, 1024, 1440]) {
  * asserts is that nothing the site itself puts under a thumb is too small for
  * one.
  */
-await page.setViewportSize({ width: 390, height: 844 })
-/* At the top of the page, which is the worst case: the comparison stage rests
-   at scale(0.94) until it is scrolled, so a 44px control is 41px on screen
-   there. Measuring wherever the page happened to be left made this pass. */
-await page.evaluate(() => window.scrollTo(0, 0))
-await page.waitForTimeout(900)
-await page.waitForTimeout(700)
-const small = await page.evaluate(() => {
-  const out = []
-  for (const el of document.querySelectorAll('a,button,[role="radio"],input,select')) {
-    if (el.closest('.xp-root')) continue
-    const r = el.getBoundingClientRect()
-    if (r.width < 1 || r.height < 1) continue
-    if (r.width < 44 || r.height < 44) {
-      out.push({
-        label: (el.getAttribute('aria-label') ?? el.textContent ?? el.tagName).trim().slice(0, 24),
-        w: Math.round(r.width),
-        h: Math.round(r.height),
-      })
+for (const scheme of SCHEMES) {
+  await setScheme(scheme)
+  await page.setViewportSize({ width: 390, height: 844 })
+  /* At the top of the page, which is the worst case: the comparison stage rests
+     at scale(0.96) until it is scrolled, so a 44px control is 42px on screen
+     there. Measuring wherever the page happened to be left made this pass. */
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await page.waitForTimeout(900)
+  await page.waitForTimeout(700)
+  const small = await page.evaluate(() => {
+    const out = []
+    let measured = 0
+    for (const el of document.querySelectorAll('a,button,[role="radio"],input,select')) {
+      if (el.closest('.xp-root')) continue
+      const r = el.getBoundingClientRect()
+      if (r.width < 1 || r.height < 1) continue
+      measured += 1
+      if (r.width < 44 || r.height < 44) {
+        out.push({
+          label: (el.getAttribute('aria-label') ?? el.textContent ?? el.tagName).trim().slice(0, 24),
+          w: Math.round(r.width),
+          h: Math.round(r.height),
+        })
+      }
     }
-  }
-  return out
-})
-check('every control the site owns is at least 44px on a phone', small.length === 0, JSON.stringify(small.slice(0, 5)))
+    return { out, measured }
+  })
+  check(`touch sweep (${scheme}): it measured controls`, small.measured > 0, `${small.measured} controls`)
+  check(
+    `every control the site owns is at least 44px on a phone (${scheme})`,
+    small.out.length === 0,
+    JSON.stringify(small.out.slice(0, 5)),
+  )
+}
 
 /* The metered path renders a control the fast path never does, so the sweep
    above had no way to see it. It was 42px. */
-const metered = await browser.newContext({ viewport: { width: 390, height: 844 } })
-await metered.addInitScript(() =>
-  Object.defineProperty(navigator, 'connection', {
-    configurable: true,
-    get: () => ({ saveData: true, effectiveType: '4g' }),
-  }),
-)
-const meteredPage = await metered.newPage()
-await meteredPage.goto(BASE, { waitUntil: 'domcontentloaded' })
-await meteredPage.waitForTimeout(4000)
-const meteredSmall = await meteredPage.evaluate(() =>
-  [...document.querySelectorAll('a,button,[role="radio"]')]
-    .filter((el) => {
-      if (el.closest('.xp-root')) return false
-      const r = el.getBoundingClientRect()
-      return r.width > 0 && (r.width < 44 || r.height < 44)
-    })
-    .map((el) => ({ label: el.textContent.trim().slice(0, 24), h: Math.round(el.getBoundingClientRect().height) })),
-)
-check('the metered path has big enough controls too', meteredSmall.length === 0, JSON.stringify(meteredSmall))
-await metered.close()
+for (const scheme of SCHEMES) {
+  const metered = await browser.newContext({ viewport: { width: 390, height: 844 }, colorScheme: scheme })
+  await metered.addInitScript(() =>
+    Object.defineProperty(navigator, 'connection', {
+      configurable: true,
+      get: () => ({ saveData: true, effectiveType: '4g' }),
+    }),
+  )
+  const meteredPage = await metered.newPage()
+  await meteredPage.goto(BASE, { waitUntil: 'domcontentloaded' })
+  await meteredPage.waitForTimeout(4000)
+  const meteredResult = await meteredPage.evaluate((s) => ({
+    scheme: window.matchMedia(`(prefers-color-scheme: ${s})`).matches,
+    measured: [...document.querySelectorAll('a,button,[role="radio"]')].filter(
+      (el) => !el.closest('.xp-root') && el.getBoundingClientRect().width > 0,
+    ).length,
+    small: [...document.querySelectorAll('a,button,[role="radio"]')]
+      .filter((el) => {
+        if (el.closest('.xp-root')) return false
+        const r = el.getBoundingClientRect()
+        return r.width > 0 && (r.width < 44 || r.height < 44)
+      })
+      .map((el) => ({ label: el.textContent.trim().slice(0, 24), h: Math.round(el.getBoundingClientRect().height) })),
+  }), scheme)
+  check(
+    `metered path (${scheme}): scheme took and controls were measured`,
+    meteredResult.scheme && meteredResult.measured > 0,
+    `${meteredResult.measured} controls`,
+  )
+  check(
+    `the metered path has big enough controls too (${scheme})`,
+    meteredResult.small.length === 0,
+    JSON.stringify(meteredResult.small),
+  )
+  await metered.close()
+}
 await page.setViewportSize({ width: 1440, height: 900 })
 
 check('no uncaught errors', pageErrors.length === 0, pageErrors.join(' | '))
