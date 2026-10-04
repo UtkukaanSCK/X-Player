@@ -2,6 +2,24 @@
 
 ## Unreleased
 
+- Fixed: an open menu on a narrow player cut its last row off under a touch
+  pointer, and Tab walked out of it into controls it was hiding. Menu rows are
+  44px there, but the menu kept the height cap drawn for smaller rows: on a
+  390px player the Picture in picture row was 84% visible, 48% at 360px and not
+  at all at 320px, and the quality menu's last row the same. From 400px down an
+  open menu now covers the control bar, as it already did from 300px down (the
+  picture above it stays in view), and three 44px rows fit from 281px. With a
+  mouse, three 38px rows no longer scroll from 381px down to 301. Where rows
+  cannot fit at all - four or five of them from 300px down, the eight-row speed
+  panel at any phone width - they stay 44px and the menu takes the player's
+  height and scrolls. Covering the bar made Tab worse: from the last row it
+  went to Full screen, under the menu. Tab and Shift+Tab on a row now close the
+  menu and return focus to the button that opened it, as Escape does, at every
+  width, and focus that moves to any other control closes it. Pressing the
+  menu's padding, or in WebKit a row, drops focus on the player itself; the
+  next Tab now closes the menu, where Tab used to cross up to 6 hidden
+  controls at 390px and 5 at 300px. Heights measured in Chromium, focus in
+  Chromium and WebKit; not Firefox, no real phone, no screen reader.
 - Fixed: on a player 300px wide or narrower, the resume offer covered a control
   bar that could not be pressed. The offer is translucent, so the bar showed
   through at full size, and a tap aimed at Settings landed on the offer and
