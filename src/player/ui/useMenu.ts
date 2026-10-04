@@ -8,7 +8,7 @@ interface Menu {
   setOpen: (open: boolean) => void
   /** Put this on the element that wraps both the button and the popup. */
   wrapRef: RefObject<HTMLDivElement | null>
-  /** Focus returns here when the menu closes with Escape. */
+  /** Focus returns here when the menu closes with Escape or Tab. */
   buttonRef: RefObject<HTMLButtonElement | null>
 }
 
@@ -63,7 +63,7 @@ export function useMenu(onOpenChange: (open: boolean) => void): Menu {
      * choosing "Playback speed" removes the button being clicked, focus falls to
      * body, and the next Tab starts again from the top of the document instead of
      * from the menu. A deliberate Tab out names its destination, so only a fall to
-     * nothing is caught here.
+     * nothing is caught here; onFocusIn closes the menu for those.
      */
     const onFocusOut = (e: FocusEvent) => {
       if (e.relatedTarget !== null) return
@@ -72,6 +72,27 @@ export function useMenu(onOpenChange: (open: boolean) => void): Menu {
         const first = wrap.querySelector<HTMLElement>(ITEMS)
         ;(first ?? buttonRef.current)?.focus()
       })
+    }
+
+    /*
+     * Focus that lands outside the wrapper closes the menu and stays where it
+     * went.
+     *
+     * Landing on an ancestor does not count: WebKit gives a clicked button no
+     * focus and hands it to the player root, and pressing the menu's padding in
+     * Chromium does the same, so closing there would end the menu before the
+     * click lands. The root then holds focus with the menu open, and a Tab from
+     * it goes to a bar control hidden under the menu; that is why this listens
+     * for focusin, which sees the move, where the wrapper's focusout never does.
+     * A keyboard move out of the wrapper lands on another control, never on the
+     * root: the seek slider always precedes the menu buttons in tab order.
+     * Bound on the wrapper's root node, not the document, so a player inside a
+     * shadow root is not seen through its host. The cost is that focus moving
+     * to the host page from inside such a root does not close the menu.
+     */
+    const onFocusIn = (e: Event) => {
+      const to = e.target as Node
+      if (!wrap?.contains(to) && !to.contains(wrap)) setOpen(false)
     }
 
     /*
@@ -106,6 +127,19 @@ export function useMenu(onOpenChange: (open: boolean) => void): Menu {
         case 'End':
           next = items[items.length - 1]
           break
+        case 'Tab':
+          // At any width. On a narrow player the open menu covers the bar, so
+          // the next control in DOM order is hidden behind it. Tab from a row
+          // closes the menu and hands focus to the button that opened it, the
+          // way Escape does. With focus off the rows (on the button) Tab is
+          // left alone: forward goes on into the first row, and Shift+Tab
+          // leaves the wrapper, which onFocusIn closes the menu for.
+          if (at < 0) return
+          setOpen(false)
+          buttonRef.current?.focus()
+          e.preventDefault()
+          e.stopPropagation()
+          return
         case 'ArrowLeft': {
           // Choosing it unmounts the panel, and onFocusOut above puts focus
           // on the first row of the one that replaces it.
@@ -124,9 +158,12 @@ export function useMenu(onOpenChange: (open: boolean) => void): Menu {
 
     document.addEventListener('pointerdown', onDown, true)
     document.addEventListener('keydown', onKey, true)
+    const root = wrap?.getRootNode()
+    root?.addEventListener('focusin', onFocusIn)
     wrap?.addEventListener('focusout', onFocusOut)
     wrap?.addEventListener('keydown', onNavigate)
     return () => {
+      root?.removeEventListener('focusin', onFocusIn)
       document.removeEventListener('pointerdown', onDown, true)
       document.removeEventListener('keydown', onKey, true)
       wrap?.removeEventListener('focusout', onFocusOut)
