@@ -2213,6 +2213,323 @@ check('and the centre of every row, once scrolled to, is the row', scrolled.bloc
 check('the arrow keys, Home and End visit every row and wrap, from Enter on the button', scrolled.keys.length === 0, scrolled.keys.slice(0, 4).join('; '))
 await fitPage.close()
 
+/* -------------------------------------- Tab inside a menu that covers the bar */
+
+/*
+ * From 400px down the menu sits over the bar, and Tab from a row went on to
+ * the bar's buttons underneath it - focus on something the viewer cannot see.
+ * Tab or Shift+Tab from a row now closes the menu and puts focus back on the
+ * button that opened it; Shift+Tab from the button itself, with the menu open,
+ * leaves for whatever comes before it and closes the menu on the way. Volume
+ * and position are asserted unchanged: no key of these may reach the player.
+ *
+ * 480px is there because the menu sits above the bar rather than over it: Tab
+ * from a row closes it there too.
+ *
+ * Below, a press on the menu's padding must leave it open and still not let
+ * the next Tab walk into the bar underneath it.
+ *
+ * A desktop viewport and a keyboard, the way a person tabbing would be.
+ */
+const tabPage = await browser.newPage({ viewport: { width: 1100, height: 900 } })
+await tabPage.goto(BASE, { waitUntil: 'networkidle' })
+await tabPage.locator('#ladder').scrollIntoViewIfNeeded()
+await tabPage.waitForTimeout(1200)
+const tabProbe = ([sel, scope, video]) => {
+  const wrap = document.querySelector(sel + ' ' + scope)
+  const button = wrap.querySelector('.xp-btn')
+  const menu = wrap.querySelector('.xp-menu')
+  const v = document.querySelector(video)
+  const on = document.activeElement
+  const r = on.getBoundingClientRect()
+  const hit = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2)
+  return {
+    menus: document.querySelectorAll(sel + ' .xp-menu').length,
+    rows: menu ? menu.querySelectorAll('[role^="menuitem"]').length : 0,
+    onButton: on === button,
+    outside: !wrap.contains(on) && on !== document.body,
+    seen: r.width > 0 && !!hit && on.contains(hit),
+    name: on.getAttribute('aria-label') ?? on.textContent.trim(),
+    volume: v.volume,
+    t: v.currentTime,
+  }
+}
+const tabState = (scope) => tabPage.evaluate(tabProbe, [LADDER_CASE, scope, V])
+const tabProblems = { setup: [], closed: [], focus: [], seen: [], player: [] }
+let tabRuns = 0
+let tabKeys = 0
+const tabPress = async (key) => {
+  await tabPage.keyboard.press(key)
+  tabKeys++
+  await tabPage.waitForTimeout(120)
+}
+for (const w of [390, 300, 480]) {
+  await tabPage.evaluate(
+    ([sel, px]) => {
+      document.querySelector(sel).style.width = px + 'px'
+    },
+    [LADDER_CASE + ' .xp-root', w],
+  )
+  await tabPage.waitForTimeout(250)
+  for (const scope of ['.xp-settings', '.xp-quality']) {
+    const onBar = await tabPage.evaluate(
+      (sel) => document.querySelector(sel)?.getBoundingClientRect().width > 0,
+      `${LADDER_CASE} ${scope} .xp-btn`,
+    )
+    if (!onBar) {
+      // At 300px, the tight tier, quality leaves the bar and becomes a row of settings.
+      if (scope === '.xp-settings' || w !== 300) tabProblems.setup.push(`${w}px: no ${scope.slice(4)} button`)
+      continue
+    }
+    const btn = tabPage.locator(`${LADDER_CASE} ${scope} .xp-btn`)
+    for (const [how, key] of [['Tab', 'Tab'], ['Shift+Tab', 'Shift+Tab'], ['Shift+Tab from the button', 'Shift+Tab']]) {
+      const at = `${w}px ${scope.slice(4)} ${how}`
+      await btn.focus()
+      const before = await tabState(scope)
+      await tabPress('Enter')
+      if (how === 'Shift+Tab from the button') {
+        // Focus is still on the button; the menu is open behind it.
+      } else {
+        await tabPress('ArrowDown')
+        // Tab leaves from the last row, where the bar's buttons are next in line.
+        if (how === 'Tab') await tabPress('End')
+      }
+      const open = await tabState(scope)
+      tabRuns++
+      if (open.menus !== 1 || open.rows === 0) {
+        tabProblems.setup.push(`${at}: menu did not open (${open.menus} menus, ${open.rows} rows)`)
+      }
+      if (how !== 'Shift+Tab from the button' && open.onButton) {
+        tabProblems.setup.push(`${at}: ArrowDown did not move focus into the menu`)
+      }
+      await tabPress(key)
+      const after = await tabState(scope)
+      if (after.menus !== 0) tabProblems.closed.push(`${at}: ${after.menus} menu(s) still open`)
+      if (how === 'Shift+Tab from the button') {
+        if (!after.outside) tabProblems.focus.push(`${at}: focus on ${after.name}, not outside the wrapper`)
+      } else if (!after.onButton) {
+        tabProblems.focus.push(`${at}: focus on ${after.name}, not the button that opened it`)
+      }
+      if (!after.seen) tabProblems.seen.push(`${at}: ${after.name} is not what its own centre hits`)
+      if (after.volume !== before.volume || after.t !== before.t) {
+        tabProblems.player.push(`${at}: volume ${before.volume} -> ${after.volume}, position ${before.t} -> ${after.t}`)
+      }
+      if ((await tabPage.locator(LADDER_CASE + ' .xp-menu').count()) > 0) await tabPress('Escape')
+    }
+  }
+}
+check(
+  'the Tab check ran: menus opened with rows, keys pressed',
+  tabProblems.setup.length === 0 && tabRuns === 15 && tabKeys > 0,
+  tabProblems.setup.slice(0, 4).join('; ') || `${tabRuns} runs, ${tabKeys} keys`,
+)
+check('Tab and Shift+Tab close the menu', tabProblems.closed.length === 0, tabProblems.closed.slice(0, 4).join('; '))
+check('and focus goes back to the button that opened it, or out past it', tabProblems.focus.length === 0, tabProblems.focus.slice(0, 4).join('; '))
+check('and the element holding focus is one a viewer can see and hit', tabProblems.seen.length === 0, tabProblems.seen.slice(0, 4).join('; '))
+check('and none of those keys reached the player', tabProblems.player.length === 0, tabProblems.player.slice(0, 4).join('; '))
+
+/*
+ * Closing the menu when focus leaves its wrapper must not close it on a press
+ * that merely lands on the menu's own padding: the browser moves focus from
+ * there to the nearest focusable ancestor, the player root, and that looks
+ * like leaving. The point is 3px inside the menu's left edge at mid height -
+ * not a corner, where the radius would move the hit-test outside.
+ */
+const padProblems = { setup: [], closed: [], row: [] }
+let padRuns = 0
+let rowRuns = 0
+for (const w of [390, 480]) {
+  await tabPage.evaluate(
+    ([sel, px]) => {
+      document.querySelector(sel).style.width = px + 'px'
+    },
+    [LADDER_CASE + ' .xp-root', w],
+  )
+  await tabPage.waitForTimeout(250)
+  for (const scope of ['.xp-settings', '.xp-quality']) {
+    const at = `${w}px ${scope.slice(4)}`
+    const btn = tabPage.locator(`${LADDER_CASE} ${scope} .xp-btn`)
+    if (!(await btn.isVisible())) {
+      padProblems.setup.push(`${at}: no button`)
+      continue
+    }
+    const labelOf = () => btn.getAttribute('aria-label')
+    const labelBefore = await labelOf()
+    await btn.focus()
+    await tabPress('Enter')
+    await tabPress('ArrowDown')
+    const spot = await tabPage.evaluate((sel) => {
+      const menu = document.querySelector(sel + ' .xp-menu')
+      if (!menu) return null
+      const r = menu.getBoundingClientRect()
+      const x = r.left + 3
+      const y = r.top + r.height / 2
+      const hit = document.elementFromPoint(x, y)
+      const row = hit?.closest('[role^="menuitem"]')
+      return { x, y, onMenu: !!hit && !row && !!hit.closest('.xp-menu') }
+    }, `${LADDER_CASE} ${scope}`)
+    if (!spot || !spot.onMenu) {
+      padProblems.setup.push(`${at}: the point is not on the menu's padding`)
+      await tabPress('Escape')
+      continue
+    }
+    padRuns++
+    await tabPage.mouse.click(spot.x, spot.y)
+    await tabPage.waitForTimeout(150)
+    const menusAfter = await tabPage.locator(`${LADDER_CASE} .xp-menu`).count()
+    if (menusAfter !== 1) padProblems.closed.push(`${at}: ${menusAfter} menus after the press`)
+    if (menusAfter !== 1) {
+      padProblems.row.push(`${at}: row step skipped, menu closed`)
+      continue
+    }
+    if (scope === '.xp-settings') {
+      await tabPage.locator(`${LADDER_CASE} .xp-menu [role="menuitem"]`, { hasText: 'Playback speed' }).click()
+      await tabPage.waitForTimeout(150)
+      if ((await tabPage.locator(`${LADDER_CASE} .xp-menu-back`).count()) !== 1) {
+        padProblems.row.push(`${at}: Playback speed did not open its panel`)
+      } else {
+        rowRuns++
+      }
+      await tabPress('Escape')
+    } else {
+      const rows = tabPage.locator(`${LADDER_CASE} .xp-menu [role="menuitemradio"]`)
+      const names = await rows.evaluateAll((els) => els.map((e) => [e.textContent.trim(), e.getAttribute('aria-checked')]))
+      const other = names.findIndex(([, checked]) => checked !== 'true')
+      const original = names.findIndex(([, checked]) => checked === 'true')
+      if (other < 0 || original < 0) {
+        padProblems.setup.push(`${at}: no second rendition to pick`)
+        await tabPress('Escape')
+        continue
+      }
+      await rows.nth(other).click()
+      await tabPage.waitForTimeout(250)
+      const picked = (await labelOf()) !== labelBefore
+      if (!picked) padProblems.row.push(`${at}: picking ${names[other][0]} left "${labelBefore}"`)
+      // A pick that did nothing leaves the menu open; Enter would then close it.
+      if ((await tabPage.locator(`${LADDER_CASE} .xp-menu`).count()) === 0) {
+        await btn.focus()
+        await tabPress('Enter')
+      }
+      await tabPage.locator(`${LADDER_CASE} .xp-menu [role="menuitemradio"]`).nth(original).click()
+      await tabPage.waitForTimeout(250)
+      if ((await labelOf()) !== labelBefore) padProblems.row.push(`${at}: could not restore "${labelBefore}"`)
+      else if (picked) rowRuns++
+    }
+    if ((await tabPage.locator(`${LADDER_CASE} .xp-menu`).count()) > 0) await tabPress('Escape')
+  }
+}
+check(
+  'the press check ran: four menus open, a padding point on each',
+  padProblems.setup.length === 0 && padRuns === 4,
+  padProblems.setup.slice(0, 4).join('; ') || `${padRuns} runs`,
+)
+check('a press inside the menu but off its rows leaves it open', padProblems.closed.length === 0, padProblems.closed.slice(0, 4).join('; '))
+check(
+  'and a row pressed after it still does its job',
+  padProblems.row.length === 0 && rowRuns === 4,
+  padProblems.row.slice(0, 4).join('; ') || `${rowRuns} rows pressed`,
+)
+
+/*
+ * And what Tab does next. The press left focus on the player root with the
+ * menu still open, and Tab from the root went on to the bar's controls - six
+ * stops at 390px, five at 300px, hidden under a menu that covers the bar. Tab
+ * from there closes the menu and lands on something the viewer can see.
+ * Quality is a control of the bar at 390px only; at 300px it is a row of
+ * settings.
+ *
+ * The walk is every stop, not the first: at 390px the first one from the root
+ * is the big Play over the picture, above the menu and visible, so only the
+ * stops after it show the fault.
+ */
+const rootProblems = { setup: [], closed: [], seen: [] }
+let rootRuns = 0
+const rootStops = []
+for (const [w, scopes] of [[390, ['.xp-settings', '.xp-quality']], [300, ['.xp-settings']]]) {
+  await tabPage.evaluate(
+    ([sel, px]) => {
+      document.querySelector(sel).style.width = px + 'px'
+    },
+    [LADDER_CASE + ' .xp-root', w],
+  )
+  await tabPage.waitForTimeout(250)
+  for (const scope of scopes) {
+    const at = `${w}px ${scope.slice(4)}`
+    const btn = tabPage.locator(`${LADDER_CASE} ${scope} .xp-btn`)
+    if (!(await btn.isVisible())) {
+      rootProblems.setup.push(`${at}: no button`)
+      continue
+    }
+    await btn.focus()
+    await tabPress('Enter')
+    await tabPress('ArrowDown')
+    const spot = await tabPage.evaluate((sel) => {
+      const menu = document.querySelector(sel + ' .xp-menu')
+      if (!menu) return null
+      const r = menu.getBoundingClientRect()
+      const x = r.left + 3
+      const y = r.top + r.height / 2
+      const hit = document.elementFromPoint(x, y)
+      return { x, y, onMenu: !!hit && !hit.closest('[role^="menuitem"]') && !!hit.closest('.xp-menu') }
+    }, `${LADDER_CASE} ${scope}`)
+    if (!spot || !spot.onMenu) {
+      rootProblems.setup.push(`${at}: the point is not on the menu's padding`)
+      await tabPress('Escape')
+      continue
+    }
+    await tabPage.mouse.click(spot.x, spot.y)
+    await tabPage.waitForTimeout(150)
+    const pressed = await tabPage.evaluate((sel) => ({
+      menus: document.querySelectorAll(sel + ' .xp-menu').length,
+      onRoot: document.activeElement === document.querySelector(sel + ' .xp-root'),
+    }), LADDER_CASE)
+    if (pressed.menus !== 1 || !pressed.onRoot) {
+      rootProblems.setup.push(`${at}: after the press ${pressed.menus} menus, focus ${pressed.onRoot ? 'on' : 'off'} the root`)
+      if (pressed.menus > 0) await tabPress('Escape')
+      continue
+    }
+    rootRuns++
+    // Walk the stops from the root until focus is out of the player, or twelve
+    // keys: every one must be a control the viewer can see.
+    let stops = 0
+    let left = false
+    const names = []
+    const hidden = []
+    for (let n = 1; n <= 12; n++) {
+      await tabPress('Tab')
+      const at2 = `${at} Tab ${n}`
+      const stop = await tabState(scope)
+      const leftRoot = await tabPage.evaluate(
+        (sel) => !document.querySelector(sel + ' .xp-root').contains(document.activeElement),
+        LADDER_CASE,
+      )
+      if (leftRoot) {
+        left = true
+        break
+      }
+      stops++
+      names.push(stop.name)
+      if (n === 1 && stop.menus !== 0) rootProblems.closed.push(`${at}: ${stop.menus} menu(s) still open, focus on ${stop.name}`)
+      if (!stop.seen) hidden.push({ n, name: stop.name })
+    }
+    rootStops.push(`${at}: ${names.join(' > ')}`)
+    if (hidden.length > 0) {
+      rootProblems.seen.push(`${at}: ${hidden.length} hidden, from Tab ${hidden[0].n} (${hidden[0].name})`)
+    }
+    if (!left) rootProblems.setup.push(`${at}: walk hit the cap inside the player`)
+    if (stops < 3) rootProblems.setup.push(`${at}: only ${stops} stops walked`)
+    if ((await tabPage.locator(`${LADDER_CASE} .xp-menu`).count()) > 0) await tabPress('Escape')
+  }
+}
+check(
+  'the Tab-after-press check ran: focus on the root, menu open, three stops or more walked',
+  rootProblems.setup.length === 0 && rootRuns === 3,
+  rootProblems.setup.slice(0, 4).join('; ') || `${rootRuns} runs; ${rootStops.join(' | ')}`,
+)
+check('Tab after a press on the menu closes it', rootProblems.closed.length === 0, rootProblems.closed.slice(0, 4).join('; '))
+check('and every control focus lands on after it is one the viewer can see', rootProblems.seen.length === 0, rootProblems.seen.slice(0, 4).join('; '))
+await tabPage.close()
+
 /* -------------------------------------- the player never scrolls itself */
 
 /*
