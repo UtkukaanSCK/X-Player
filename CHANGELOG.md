@@ -7,13 +7,12 @@
   44px there, but the menu kept the height cap drawn for smaller rows: on a
   390px player the Picture in picture row was 84% visible, 48% at 360px and not
   at all at 320px, and the quality menu's last row the same. From 400px down an
-  open menu now covers the control bar, as it already did from 300px down (the
-  picture above it stays in view), and three 44px rows fit from 281px. With a
-  mouse, three 38px rows no longer scroll from 381px down to 301. Where rows
-  cannot fit at all - four or five of them from 300px down, the eight-row speed
-  panel at any phone width - they stay 44px and the menu takes the player's
-  height and scrolls. Covering the bar made Tab worse: from the last row it
-  went to Full screen, under the menu. Tab and Shift+Tab on a row now close the
+  open menu now covers the control bar, as it already did from 300px down (with
+  three rows the picture above it stays in view), and three 44px rows fit from
+  281px. With a mouse, three 38px rows no longer scroll from 381px down to 301.
+  Where rows cannot fit at all - four or five of them from 300px down, the
+  eight-row speed panel at any phone width - they stay 44px and the menu takes
+  the player's height and scrolls. Tab and Shift+Tab on a row now close the
   menu and return focus to the button that opened it, as Escape does, at every
   width, and focus that moves to any other control closes it. Pressing the
   menu's padding, or in WebKit a row, drops focus on the player itself; the
