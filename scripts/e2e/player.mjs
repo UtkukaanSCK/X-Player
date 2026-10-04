@@ -2497,7 +2497,6 @@ for (const [w, scopes] of [[390, ['.xp-settings', '.xp-quality']], [300, ['.xp-s
     const hidden = []
     for (let n = 1; n <= 12; n++) {
       await tabPress('Tab')
-      const at2 = `${at} Tab ${n}`
       const stop = await tabState(scope)
       const leftRoot = await tabPage.evaluate(
         (sel) => !document.querySelector(sel + ' .xp-root').contains(document.activeElement),
