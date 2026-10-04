@@ -37,7 +37,7 @@ export function SiteHeader() {
 function Mark() {
   return (
     <svg width="22" height="22" viewBox="0 0 22 22" aria-hidden focusable="false">
-      <rect width="22" height="22" rx="5.5" fill="var(--color-ink)" />
+      <rect width="22" height="22" rx="5.5" className="fill-mark-ground" />
       <path d="M7.5 7.5l7 7M14.5 7.5l-7 7" stroke="var(--color-mark)" strokeWidth="2.4" strokeLinecap="round" />
     </svg>
   )

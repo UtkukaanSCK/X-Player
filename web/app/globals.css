@@ -13,64 +13,254 @@
 @source "../components";
 
 /*
- * White ground, graphite ink, and no accent colour of the page's own.
+ * A screen too short to hold the comparison pinned at a readable size.
+ *
+ * Below 740px the column cap (.proof-column) would narrow the two videos past
+ * the point where their captions and readings fit, and at the heights a browser
+ * really leaves on a laptop - about 633px on a 1366x768 screen - the pinned
+ * section clipped outright. In landscape on a phone, or at 200% zoom, the
+ * connection control was not on screen at all. Under this height the section
+ * stops pinning and scrolls like everything else, at its full width.
+ */
+@custom-variant short (@media (max-height: 739px));
+
+/*
+ * A white room in light and a true-black one in dark, and no accent colour of
+ * the page's own.
  *
  * The page is a frame for two videos, and the colour on it should come from
  * the footage and the player being demonstrated. Everything the page itself
  * owns is set in greys: a chosen option is marked in ink, a primary action is
- * an ink button, and of the page's own parts only the mark is amber. The
- * player keeps its amber accent, which it draws inside the footage.
+ * an ink fill, and of the page's own parts only the mark and the text selection
+ * are amber. The player keeps its amber accent, which it draws inside the
+ * footage. Amber is never text: on white it measures 1.83:1.
  *
- * Text contrast, measured with the WCAG formula against ground / panel / raised:
- * ink 17.9 / 16.4 / 15.2, muted 6.4 / 5.9 / 5.5, stall 6.2 / 5.7 / 5.2,
- * bad 5.7 / 5.2 / 4.8. Every one clears the 4.5:1 normal text needs.
+ * Elevation is lighter in both themes: band under tile, tile under panel.
+ *
+ * Text contrast, measured with the WCAG formula against
+ * ground / band / tile / panel / raised:
+ *   light  ink 17.89 / 16.29 / 17.89 / 16.29 / 14.64
+ *          muted 6.33 / 5.77 / 6.33 / 5.77 / 5.18
+ *          stall 6.51 / 5.92 / 6.51 / 5.92 / 5.32
+ *          bad 5.65 / 5.14 / 5.65 / 5.14 / 4.62
+ *   dark   ink 19.29 / 17.71 / 15.78 / 13.13 / 10.71
+ *          muted 8.38 / 7.69 / 6.85 / 5.70 / 4.65
+ *          stall 10.08 / 9.25 / 8.24 / 6.86 / 5.59
+ *          bad 8.33 / 7.65 / 6.81 / 5.67 / 4.62
+ * Every one clears the 4.5:1 normal text needs.
+ *
+ * The header's glass, composited over the worst thing that can scroll under it
+ * (a black video frame in light, a white one in dark), leaves ink at 11.14 and
+ * 8.53 but muted at 3.94 and 3.71 - so every string in the header is ink.
+ *
+ * No `@theme inline`: the dark override below works only because the utilities
+ * read these as variables. And `static`, because Tailwind otherwise emits only
+ * the variables some utility uses: band, tile and frame-edge were missing in
+ * light while the dark override defined them, so a raw var() of any of them
+ * worked in one theme and not the other.
  */
-@theme {
+@theme static {
   --color-ground: #ffffff;
-  --color-panel: #f5f5f6;
-  --color-raised: #ececee;
-  --color-line: #e4e4e7;
-  --color-line-bright: #d4d4d8;
+  /* Full-bleed section band, and the borderless tiles that sit on it. */
+  --color-band: #f4f4f6;
+  --color-tile: #ffffff;
+  /* A tint on ground or inside a tile: segmented track, code strip, lazy row. */
+  --color-panel: #f4f4f6;
+  --color-raised: #e8e8ec;
+  --color-line: #e1e1e6;
+  --color-line-bright: #d1d1d7;
 
   --color-ink: #17171a;
-  --color-ink-hover: #2c2c31;
-  --color-muted: #5e5e66;
+  --color-ink-hover: #2e2e33;
+  --color-ink-press: #000000;
+  /* Text on an ink fill. Raw white would vanish on dark's light ink. */
+  --color-on-ink: #ffffff;
+  --color-muted: #5f5f66;
 
   /*
    * Non-text only: the outline of something you can operate, which is the case
    * WCAG asks 3:1 of. The hairlines above are decoration and sit far below it,
    * which is correct for a rule and wrong for the only edge of a control.
    */
-  --color-control: #82828a;
+  --color-control: #808087;
 
   /* A stall is worth noticing and is not a failure; a failure is. */
-  --color-stall: #8f5300;
+  --color-stall: #8a5000;
   --color-bad: #c0312d;
 
-  /* The brand mark's amber, and nothing else on the page. */
+  /* The brand mark's amber, and the square it sits on. */
   --color-mark: #ffb020;
+  --color-mark-ground: #17171a;
 
-  --font-sans: var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
-  --font-mono: var(--font-mono-face), ui-monospace, monospace;
+  --color-glass: rgb(255 255 255 / 0.8);
+  /* A 1px edge drawn inside the video frames, over the footage. */
+  --color-frame-edge: rgb(0 0 0 / 0.08);
+
+  /*
+   * The visitor's own system face on Apple devices, Archivo for everyone else.
+   * No SF font files ship; -apple-system and BlinkMacSystemFont resolve only
+   * where the system already has it.
+   */
+  --font-sans: -apple-system, BlinkMacSystemFont, var(--font-archivo), ui-sans-serif, system-ui, sans-serif;
+  /* JetBrains first everywhere: the readout columns are measured with its metrics. */
+  --font-mono: var(--font-mono-face), ui-monospace, SFMono-Regular, Menlo, monospace;
 
   /*
    * One scale, in rem, so that a reader who has raised their browser's default
-   * text size gets a page that listens - px would ignore them.
+   * text size gets a page that listens - px would ignore them. Each size
+   * carries its own line height and tracking; `leading-*` and `tracking-*`
+   * still override them.
+   *
+   * The tracking is a compromise between two faces: SF wants about -0.015em at
+   * display sizes and Archivo about -0.03em. If the h1 reads too tight in
+   * Safari on a Mac, move only --text-hero--letter-spacing towards -0.016em.
    */
-  --text-micro: 0.75rem; /* 12px - meta and hints */
-  --text-caption: 0.8125rem; /* 13px - notes and secondary lines */
-  --text-body: 0.9375rem; /* 15px - default UI and prose */
-  --text-lead: 1.0625rem; /* 17px - option labels, lead paragraphs */
-  --text-title: 1.1875rem; /* 19px - the question prompts */
-  --text-figure: 1.25rem; /* 20px - a total meant to be read */
+  --text-micro: 0.75rem; /* 12px - readout labels, raw sizes, footer */
+  --text-micro--line-height: 1.34;
+  --text-caption: 0.875rem; /* 14px - hints, captions, header links, notes */
+  --text-caption--line-height: 1.43;
+  --text-caption--letter-spacing: -0.006em;
+  --text-body: 1rem; /* 16px - default UI and option labels */
+  --text-body--line-height: 1.5;
+  --text-body--letter-spacing: -0.011em;
+  --text-lead: clamp(1.0625rem, 1rem + 0.25vw, 1.1875rem); /* 17-19px - verdict, lead paragraphs */
+  --text-lead--line-height: 1.45;
+  --text-lead--letter-spacing: -0.012em;
+  --text-title: 1.3125rem; /* 21px - question prompts, manifest title */
+  --text-title--line-height: 1.3;
+  --text-title--letter-spacing: -0.012em;
+  --text-title--font-weight: 600;
+  --text-figure: 1.5rem; /* 24px - a total meant to be read */
+  --text-figure--line-height: 1.2;
+  --text-figure--letter-spacing: -0.012em;
+  --text-figure--font-weight: 600;
+  --text-section: clamp(2rem, 1.4rem + 2.4vw, 3rem);
+  --text-section--line-height: 1.08;
+  --text-section--letter-spacing: -0.02em;
+  --text-section--font-weight: 600;
 
   /*
    * The heading answers to the screen's height as well, through the svh term:
    * on a short laptop screen the comparison has to fit underneath it, and a
    * heading sized for the width alone took the room the two videos needed.
+   * 34px at 390, 49.2 at 1366x768, 57.6 at 1440x900, 64 at 1920x1080.
    */
-  --text-hero: clamp(2rem, min(1.35rem + 3.1vw, 6.2svh), 3.5rem);
-  --text-section: clamp(1.75rem, 1.2rem + 2.1vw, 2.625rem);
+  --text-hero: clamp(2.125rem, min(1.25rem + 3.4vw, 6.4svh), 4rem);
+  --text-hero--line-height: 1.07;
+  --text-hero--letter-spacing: -0.022em;
+  --text-hero--font-weight: 600;
+
+  /* Radius follows hierarchy: tiles, then notes; controls are pills. */
+  --radius-tile: 1.125rem;
+  --radius-note: 0.875rem;
+}
+
+/*
+ * Dark follows the system and nothing else; there is no toggle. The ground is
+ * true black, not a tinted near-black, and the page still owns no accent.
+ */
+@media (prefers-color-scheme: dark) {
+  :root {
+    --color-ground: #000000;
+    --color-band: #0e0e10;
+    --color-tile: #1b1b1e;
+    --color-panel: #2a2a2e;
+    --color-raised: #38383d;
+    --color-line: #2f2f34;
+    --color-line-bright: #46464c;
+    --color-ink: #f5f5f7;
+    /* A light pill darkens on hover and press. */
+    --color-ink-hover: #dcdce0;
+    --color-ink-press: #c2c2c8;
+    --color-on-ink: #000000;
+    --color-muted: #a3a3aa;
+    --color-control: #85858d;
+    --color-stall: #f2a33a;
+    /* #ff6b61 measured 4.18 on raised; this clears 4.5 on every surface. */
+    --color-bad: #ff7b72;
+    /*
+     * The mark's square stays dark. An ink square here would be light grey
+     * with amber on it, 1.68:1.
+     */
+    --color-mark-ground: #2c2c30;
+    --color-glass: rgb(0 0 0 / 0.72);
+    /* What tells a black frame apart from the black ground. */
+    --color-frame-edge: rgb(255 255 255 / 0.14);
+  }
+}
+
+/* More contrast asked for: darker secondary text, control-strength rules, opaque header. */
+@media (prefers-contrast: more) {
+  :root {
+    --color-muted: #404046;
+    --color-line: var(--color-control);
+    --color-glass: var(--color-ground);
+  }
+}
+@media (prefers-contrast: more) and (prefers-color-scheme: dark) {
+  :root {
+    --color-muted: #c7c7cc;
+  }
+}
+
+:root {
+  --header-h: 3rem; /* 48px */
+  --gutter: clamp(1rem, 5vw, 2.5rem); /* 16 @320, 19.5 @390, 38.4 @768, 40 from 800 */
+  --page-max: 72rem; /* 1152px: header, proof column cap, GetIt, footer */
+  --section-y: clamp(4.5rem, 3rem + 6vw, 8.5rem); /* 72 @390, 94 @768, 109 @1024, 134 @1440 */
+  /*
+   * See .proof-column. 31rem while the pinned box still carries the old 80px
+   * top padding and a 1.625 verdict leading; 30rem once it is on the 68px
+   * padding and the lead token's 1.45.
+   */
+  --proof-allowance: 31rem;
+}
+
+html {
+  color-scheme: light dark;
+  background: var(--color-ground);
+  /* Section anchors land flush under the fixed header. */
+  scroll-padding-top: var(--header-h);
+  /*
+   * No scroll-behavior: smooth. It would turn StartAtTop's reset and every
+   * window.scrollTo in the e2e suites into an animation, and three suites read
+   * positions soon after scrolling.
+   */
+}
+
+body {
+  /*
+   * Painted, not inherited. The contrast suite measures text against the first
+   * ancestor with an opaque background and falls back to black when it finds
+   * none, which on a white page would fail every string on it.
+   */
+  background: var(--color-ground);
+  color: var(--color-ink);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Focused controls keep 16px clear of the header, so a focus ring is never under it. */
+:where(a, button, [tabindex]) {
+  scroll-margin-block: 1rem;
+}
+
+/* Ink on 35% amber: 14.37 in light, 9.10 in dark. */
+::selection {
+  background: color-mix(in srgb, var(--color-mark) 35%, transparent);
+  color: var(--color-ink);
+}
+
+/*
+ * Except on an ink fill, where the same amber lands on ink and ink text on it
+ * measured 2.27:1 in light and 1.21:1 in dark. Text that is on-ink stays
+ * on-ink while selected: 7.87 and 15.97. Keyed to the text colour rather than
+ * the fill, so every pill, segment and button that pairs the two is covered,
+ * whichever ink shade it is showing on hover or press.
+ */
+.text-on-ink::selection,
+.text-on-ink *::selection {
+  color: var(--color-on-ink);
 }
 
 /*
@@ -78,41 +268,92 @@
  * width, because the section pins itself to the viewport and whatever does not
  * fit is cut off rather than scrolled to.
  *
- * Everything in the column except the two videos is text and spacing, plus two
- * lines of heading at 6.2svh each, so the height left for the videos is 87svh
- * minus that text. Two 16:9 frames side by side are 3.556 times as wide as they
- * are tall, plus the gap between them - 1.5rem from md up and less below, which
- * only makes the cap slightly conservative. The site header and the heading
- * share the cap, so all three keep one left edge.
+ * The height left for the videos is the viewport minus the heading and minus
+ * everything else in the pinned box. The heading is subtracted exactly: two
+ * lines of --text-hero at 1.07, so 2.14 of it, rather than the 13svh guess
+ * this used to make. Two 16:9 frames side by side are 3.5556 times as wide as
+ * they are tall, plus the gap between them - 1.5rem from md up and less below,
+ * which only makes the cap slightly conservative.
  *
- * The text allowance is 30rem. The dark design clipped its last line by 8px at
- * 1366x768 and 49px at 1280x720. This one, at 26rem and then 27rem, fitted in
- * Normal - and a review found it still clipped in Slow 2G, whose verdict runs
- * three lines where Normal's runs one, and while the stage was still settling.
- * The verdict now holds Slow 2G's height in both modes (Proof.tsx), and the
- * allowance is sized against that.
+ * The allowance is 31rem for now - see --proof-allowance above; the figures
+ * below are the 30rem design it returns to.
+ *
+ * --proof-allowance is everything else in the box, at its worst case: the
+ * header and the padding round it, the gaps, the caption row and readout at
+ * full size, the segmented control, a two-line method sentence, the verdict at
+ * three lines of lead, and the bottom padding - 29.1rem, held at 30. The dark
+ * design clipped its last line by 8px at 1366x768 and 49px at 1280x720; a
+ * later one at 26rem and then 27rem fitted in Normal but clipped in Slow 2G,
+ * whose verdict runs three lines where Normal's runs one, and while the stage
+ * was still settling. The verdict holds Slow 2G's height in both modes
+ * (Proof.tsx), and the allowance is sized against that.
+ *
+ * Resulting column at 30rem: 1079px at 1440x900, 674 at 1366x768 and
+ * 1024x768. At 31rem it is 617 at both 768-tall sizes; proof.mjs measured
+ * 26px spare settled and 12px before the stage has settled at 1366x768, and
+ * 27 and 13 at 1024x768 (the full e2e against the exported build).
  */
 .proof-column {
   width: 100%;
   margin-inline: auto;
-  max-width: min(72rem, max(20rem, calc((87svh - 30rem) * 3.556 + 1.5rem)));
+  max-width: min(
+    var(--page-max),
+    max(20rem, calc((100svh - 2.14 * var(--text-hero) - var(--proof-allowance)) * 3.5556 + 1.5rem))
+  );
+}
+
+/* Too short to pin (the `short` variant above): full width, and it scrolls. */
+@media (max-height: 739px) {
+  .proof-column {
+    max-width: var(--page-max);
+  }
 }
 
 /*
- * A screen too short to hold the comparison pinned at a readable size.
+ * The header's glass, with an opaque fallback wherever blur is missing or
+ * unwanted. Without blur, footage passing under 80% white would show through
+ * as a grey smear behind the text, so no blur means no transparency either.
  *
- * Below 740px the cap above would narrow the two videos past the point where
- * their captions and readings fit, and at the heights a browser really leaves
- * on a laptop - about 633px on a 1366x768 screen - the pinned section clipped
- * outright. In landscape on a phone, or at 200% zoom, the connection control
- * was not on screen at all. Under this height the section stops pinning and
- * scrolls like everything else, at its full width.
+ * These rules are outside any layer, so they beat Tailwind's bg-* and
+ * backdrop-* utilities on the same element: set the header's surface here,
+ * not with a utility.
  */
-@custom-variant short (@media (max-height: 739px));
+.glass {
+  background-color: var(--color-ground);
+  box-shadow: inset 0 -1px 0 var(--color-line);
+}
+@supports ((-webkit-backdrop-filter: blur(1px)) or (backdrop-filter: blur(1px))) {
+  .glass {
+    background-color: var(--color-glass);
+    -webkit-backdrop-filter: saturate(180%) blur(20px);
+    backdrop-filter: saturate(180%) blur(20px);
+  }
+}
+@media (prefers-reduced-transparency: reduce) {
+  .glass {
+    background-color: var(--color-ground);
+    -webkit-backdrop-filter: none;
+    backdrop-filter: none;
+  }
+}
+@media (forced-colors: active) {
+  .glass {
+    border-bottom: 1px solid CanvasText;
+  }
+}
 
-@media (max-height: 739px) {
-  .proof-column {
-    max-width: 72rem;
+/*
+ * The only shadow on the page: under the two video frames, in light. On a
+ * black ground a shadow has nothing to darken, and frame-edge does that job.
+ */
+.frame-shadow {
+  box-shadow:
+    0 1px 2px rgb(0 0 0 / 0.06),
+    0 20px 40px -24px rgb(0 0 0 / 0.35);
+}
+@media (prefers-color-scheme: dark) {
+  .frame-shadow {
+    box-shadow: none;
   }
 }
 
@@ -125,22 +366,6 @@
  */
 .stage-player .xp-root:focus-visible {
   outline-offset: -2px;
-}
-
-html {
-  background: var(--color-ground);
-  color-scheme: light;
-}
-
-body {
-  /*
-   * Painted, not inherited. The contrast suite measures text against the first
-   * ancestor with an opaque background and falls back to black when it finds
-   * none, which on a white page would fail every string on it.
-   */
-  background: var(--color-ground);
-  color: var(--color-ink);
-  -webkit-font-smoothing: antialiased;
 }
 
 /* The player fills whatever frame it is given; the frame owns the corners. */

@@ -485,7 +485,7 @@ function Controls({
               onClick={() => onPick(m.id)}
               onKeyDown={(event) => onKeyDown(event, index)}
               className={`min-h-12 rounded-lg px-3 py-2 text-body font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink disabled:opacity-40 ${
-                on ? 'bg-ink text-white' : 'text-muted hover:bg-raised hover:text-ink active:bg-line'
+                on ? 'bg-ink text-on-ink' : 'text-muted hover:bg-raised hover:text-ink active:bg-line'
               }`}
             >
               {m.label}
@@ -519,7 +519,7 @@ function Consent({ onStart }: { onStart: () => void }) {
       <button
         type="button"
         onClick={onStart}
-        className="min-h-12 rounded-lg bg-ink px-6 py-3 text-body font-medium text-white transition-colors hover:bg-ink-hover active:bg-black focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+        className="min-h-12 rounded-lg bg-ink px-6 py-3 text-body font-medium text-on-ink transition-colors hover:bg-ink-hover active:bg-ink-press focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
       >
         Play the comparison
       </button>

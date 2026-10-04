@@ -263,7 +263,7 @@ function Question({
 const ACTION =
   'inline-flex min-h-11 items-center rounded-lg border border-control bg-ground px-4 text-body font-medium text-ink transition-colors hover:bg-panel active:bg-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink'
 const PRIMARY =
-  'inline-flex min-h-11 items-center rounded-lg bg-ink px-4 text-body font-medium text-white transition-colors hover:bg-ink-hover active:bg-black focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink'
+  'inline-flex min-h-11 items-center rounded-lg bg-ink px-4 text-body font-medium text-on-ink transition-colors hover:bg-ink-hover active:bg-ink-press focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink'
 
 function fileCount(target: Target, playing: Playing) {
   const n = assetsFor(target, playing).length

@@ -22,7 +22,7 @@ export default function NotFound() {
 
       <Link
         href="/"
-        className="mt-8 inline-flex min-h-12 items-center rounded-lg bg-ink px-5 text-body font-medium text-white transition-colors hover:bg-ink-hover active:bg-black focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
+        className="mt-8 inline-flex min-h-12 items-center rounded-lg bg-ink px-5 text-body font-medium text-on-ink transition-colors hover:bg-ink-hover active:bg-ink-press focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
       >
         Go to the page
       </Link>
