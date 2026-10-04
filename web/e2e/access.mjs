@@ -129,6 +129,34 @@ for (const scheme of SCHEMES) {
     worst.length ? JSON.stringify(worst.slice(0, 4)) : 'checked against the colour actually behind it',
   )
 
+  /* The scheme has to change the page, not just the media query: dark means a
+     dark ground under light ink, light the reverse. Measured on the body's own
+     paint, falling back to the root when the body is transparent. */
+  const ground = await page.evaluate(() => {
+    const lin = (c) => {
+      const v = c / 255
+      return v <= 0.03928 ? v / 12.92 : Math.pow((v + 0.055) / 1.055, 2.4)
+    }
+    const lum = (css) => {
+      const n = css.match(/[\d.]+/g).map(Number)
+      return 0.2126 * lin(n[0]) + 0.7152 * lin(n[1]) + 0.0722 * lin(n[2])
+    }
+    const alpha = (css) => (css.match(/[\d.]+/g).length > 3 ? Number(css.match(/[\d.]+/g)[3]) : 1)
+    const bodyBg = getComputedStyle(document.body).backgroundColor
+    const bg = alpha(bodyBg) > 0.95 ? bodyBg : getComputedStyle(document.documentElement).backgroundColor
+    return {
+      bg: lum(bg),
+      ink: lum(getComputedStyle(document.body).color),
+      bgCss: bg,
+      inkCss: getComputedStyle(document.body).color,
+    }
+  })
+  check(
+    `the ground is ${scheme === 'dark' ? 'dark under light ink' : 'light under dark ink'} (${scheme})`,
+    scheme === 'dark' ? ground.bg < 0.1 && ground.ink > 0.5 : ground.bg > 0.5 && ground.ink < 0.1,
+    `ground ${ground.bgCss} (L ${ground.bg.toFixed(3)}), ink ${ground.inkCss} (L ${ground.ink.toFixed(3)})`,
+  )
+
   /* The scan has to be able to fail: put pale grey on white where the page
      paints, confirm it is reported, take it away again. */
   await page.evaluate(() => {

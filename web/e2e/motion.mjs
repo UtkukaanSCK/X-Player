@@ -100,12 +100,56 @@ await fonts.waitForTimeout(1500)
 const faces = await fonts.evaluate(() => {
   const h1 = document.querySelector('#proof h1')
   const mono = document.querySelector('#proof [class*="font-mono"]')
+  const names = (el) =>
+    el ? getComputedStyle(el).fontFamily.split(',').map((s) => s.trim().replace(/["']/g, '')) : []
   return {
-    display: h1 ? getComputedStyle(h1).fontFamily.split(',')[0].replace(/["']/g, '') : '',
-    mono: mono ? getComputedStyle(mono).fontFamily.split(',')[0].replace(/["']/g, '') : '',
+    h1Found: Boolean(h1),
+    stack: names(h1),
+    display: names(h1)[0] ?? '',
+    mono: names(mono)[0] ?? '',
+    fontsSize: document.fonts.size,
+    /* Does the browser have a system UI face behind -apple-system? An unknown
+       family falls through to monospace, so the same text measures the same
+       with and without it; on macOS it measures differently. */
+    probe: (() => {
+      const ctx = document.createElement('canvas').getContext('2d')
+      const text = 'Hamburgefonstiv 0123456789 Wwiilm'
+      const width = (font) => {
+        ctx.font = font
+        return ctx.measureText(text).width
+      }
+      const plain = width('16px monospace')
+      const apple = width('16px -apple-system, monospace')
+      const blink = width('16px BlinkMacSystemFont, monospace')
+      return { plain, apple, blink, resolved: apple !== plain || blink !== plain }
+    })(),
+    archivo: [...document.fonts].filter((f) => /Archivo/i.test(f.family) && !/Fallback/i.test(f.family)).map((f) => f.status),
   }
 })
-check('the display face loaded', /Archivo/i.test(faces.display), faces.display)
+/* Two claims, kept apart. "The display face loaded": Archivo is in the stack
+   ahead of the generic fallbacks and the browser holds a loaded Archivo
+   FontFace. "The stack starts with the system face": Apple devices get SF. */
+const archivoAt = faces.stack.findIndex((n) => /Archivo/i.test(n))
+const genericAt = faces.stack.findIndex((n) => n === 'ui-sans-serif')
+check('font setup: the h1 and the font set were found', faces.h1Found && faces.fontsSize > 0, `h1 ${faces.h1Found}, ${faces.fontsSize} faces`)
+check('the stack starts with the system face', faces.display === '-apple-system', faces.stack.join(', '))
+check('font setup: the system-face probe measured text', faces.probe.plain > 0 && faces.probe.apple > 0, JSON.stringify(faces.probe))
+// Where the system face is absent (here: anything but macOS) the probe must say so,
+// or the "loaded" half below would be skipped everywhere and prove nothing.
+if (process.platform !== 'darwin') {
+  check('font setup: no system face resolves on this platform', !faces.probe.resolved, JSON.stringify(faces.probe))
+}
+/* On a machine where -apple-system resolves, Archivo is never used, so its
+   FontFace stays unloaded with the page behaving correctly. The order half
+   still holds; only "loaded" is waived, and the detail says so. */
+const archivoLoaded = faces.archivo.some((s) => s === 'loaded')
+check(
+  'the display face loaded',
+  archivoAt >= 0 && genericAt > archivoAt && (archivoLoaded || faces.probe.resolved),
+  faces.probe.resolved && !archivoLoaded
+    ? `system face in use, Archivo not needed | ${faces.stack.join(', ')}`
+    : `${faces.stack.join(', ')} | Archivo FontFaces: ${faces.archivo.join(', ') || 'none'}`,
+)
 check('the mono face loaded', /JetBrains/i.test(faces.mono), faces.mono)
 await fonts.close()
 
