@@ -44,7 +44,9 @@ const GAUGE_SECONDS = 10
 function AheadGauge({ seconds }: { seconds: number }) {
   const ratio = Math.max(0, Math.min(1, seconds / GAUGE_SECONDS))
   return (
-    <div aria-hidden className="mt-1.5 h-0.5 w-full overflow-hidden rounded-full bg-line">
+    // The track darkens when more contrast is asked for: there the line token
+    // becomes the control grey, and the starved fill measured 1.44:1 against it.
+    <div aria-hidden className="mt-1.5 h-[3px] w-full overflow-hidden rounded-full bg-line contrast-more:bg-raised">
       <div
         className={`h-full origin-left ${seconds < STARVED ? 'bg-bad' : 'bg-ink'}`}
         style={{ transform: `scaleX(${ratio})` }}
@@ -66,16 +68,20 @@ function AheadGauge({ seconds }: { seconds: number }) {
  * Sizes answer to the panel's width (it is a size container), not the
  * viewport's. On a short laptop screen the panels narrow by height, and the
  * viewport-width sizes set "stalled" 63px wide in a 39px column, over the time.
- * The full size needs about 22rem of panel for its three columns. A value that
- * still will not fit - an error name - breaks rather than running into the next
- * column.
+ *
+ * Three steps: 11px below a 14rem panel, 13px from 14rem, 16px from 22rem,
+ * where the three columns can be equal. Below that the first column is wider,
+ * because it holds the only word: in equal columns "playing" broke as
+ * "playin / g" at 320, and "stalled" the same way. A value that still will not
+ * fit - an error name - breaks rather than running into the next column.
  */
 export function Readout({ reading }: { reading: Reading }) {
   const starved = reading.ahead < STARVED
-  const label = 'truncate text-[0.6875rem] text-muted @min-[22rem]:text-micro'
-  const value = 'mt-0.5 font-mono text-[0.6875rem] tabular-nums [overflow-wrap:anywhere] @min-[22rem]:text-body'
+  const label = 'truncate text-[0.6875rem] leading-[1.3] text-muted @min-[14rem]:text-micro'
+  const value =
+    'mt-0.5 font-mono text-[0.6875rem] leading-[1.3] tracking-normal tabular-nums [overflow-wrap:anywhere] @min-[14rem]:text-[0.8125rem] @min-[22rem]:text-body @min-[22rem]:leading-[1.3]'
   return (
-    <dl className="mt-2 grid grid-cols-3 gap-2 border-t border-line pt-2 @min-[22rem]:mt-2.5 @min-[22rem]:gap-4 @min-[22rem]:pt-2.5">
+    <dl className="mt-2 grid grid-cols-[1.4fr_1fr_1fr] gap-x-1.5 border-t border-line pt-2 @min-[14rem]:gap-x-3 @min-[22rem]:mt-2.5 @min-[22rem]:grid-cols-3 @min-[22rem]:gap-x-4 @min-[22rem]:pt-2.5">
       <div className="min-w-0">
         <dt className={label}>State</dt>
         <dd className={`${value} ${toneFor(reading.state)}`}>

@@ -208,12 +208,8 @@
   --gutter: clamp(1rem, 5vw, 2.5rem); /* 16 @320, 19.5 @390, 38.4 @768, 40 from 800 */
   --page-max: 72rem; /* 1152px: header, proof column cap, GetIt, footer */
   --section-y: clamp(4.5rem, 3rem + 6vw, 8.5rem); /* 72 @390, 94 @768, 109 @1024, 134 @1440 */
-  /*
-   * See .proof-column. 31rem while the pinned box still carries the old 80px
-   * top padding and a 1.625 verdict leading; 30rem once it is on the 68px
-   * padding and the lead token's 1.45.
-   */
-  --proof-allowance: 31rem;
+  /* Everything in the pinned box but the heading and the videos; see .proof-column. */
+  --proof-allowance: 30rem;
 }
 
 html {
@@ -275,23 +271,22 @@ body {
  * they are tall, plus the gap between them - 1.5rem from md up and less below,
  * which only makes the cap slightly conservative.
  *
- * The allowance is 31rem for now - see --proof-allowance above; the figures
- * below are the 30rem design it returns to.
- *
  * --proof-allowance is everything else in the box, at its worst case: the
- * header and the padding round it, the gaps, the caption row and readout at
- * full size, the segmented control, a two-line method sentence, the verdict at
- * three lines of lead, and the bottom padding - 29.1rem, held at 30. The dark
- * design clipped its last line by 8px at 1366x768 and 49px at 1280x720; a
- * later one at 26rem and then 27rem fitted in Normal but clipped in Slow 2G,
- * whose verdict runs three lines where Normal's runs one, and while the stage
- * was still settling. The verdict holds Slow 2G's height in both modes
- * (Proof.tsx), and the allowance is sized against that.
+ * header and the 20px under it (68px of top padding), the gaps, the caption
+ * row and readout at full size, the segmented control, a two-line method
+ * sentence, the verdict at three lines of lead (19px at 1.45), and the bottom
+ * padding - 29.1rem, held at 30. The dark design clipped its last line by 8px
+ * at 1366x768 and 49px at 1280x720; a later one at 26rem and then 27rem fitted
+ * in Normal but clipped in Slow 2G, whose verdict runs three lines where
+ * Normal's runs one, and while the stage was still settling. The verdict holds
+ * Slow 2G's height in both modes (Proof.tsx), and the allowance is sized
+ * against that.
  *
- * Resulting column at 30rem: 1079px at 1440x900, 674 at 1366x768 and
- * 1024x768. At 31rem it is 617 at both 768-tall sizes; proof.mjs measured
- * 26px spare settled and 12px before the stage has settled at 1366x768, and
- * 27 and 13 at 1024x768 (the full e2e against the exported build).
+ * Resulting column: 1079px at 1440x900, 674 at 1366x768 and 1024x768. The
+ * stage rests at 0.96 and 24px down before it settles, which moves its bottom
+ * edge about 13px lower, so proof.mjs checks that state too: it measured 33px
+ * spare settled and 20 unsettled at 1366x768, and 34 and 21 at 1024x768, in
+ * both modes (against the dev server).
  */
 .proof-column {
   width: 100%;
@@ -358,14 +353,28 @@ body {
 }
 
 /*
- * The player's own focus ring, drawn inside it.
+ * The player's focus ring, drawn by the frame around it.
  *
- * .xp-root draws its ring 2px outside its box, and the video frame around it
- * clips to rounded corners with overflow: hidden - so the ring was cut away on
- * all four sides, and a keyboard user tabbing to the player saw nothing.
+ * .xp-root draws its ring 2px outside its box, and the frame clips to rounded
+ * corners with overflow: hidden, so the ring was cut away on all four sides.
+ * Drawn inside instead, the playing video painted over it. Either way a
+ * keyboard user tabbing to the player saw nothing. The frame is outside both
+ * the clip and the video, and its ring is the page's own: ink, 2px, offset 2.
+ *
+ * Without :has() the frame cannot know, so there the player keeps its own
+ * ring, inside.
  */
 .stage-player .xp-root:focus-visible {
   outline-offset: -2px;
+}
+@supports selector(:has(*)) {
+  .stage-frame:has(.xp-root:focus-visible) {
+    outline: 2px solid var(--color-ink);
+    outline-offset: 2px;
+  }
+  .stage-player .xp-root:focus-visible {
+    outline: none;
+  }
 }
 
 /* The player fills whatever frame it is given; the frame owns the corners. */

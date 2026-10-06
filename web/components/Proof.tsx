@@ -8,9 +8,11 @@ import { useNetworkSim, type NetworkMode } from '@/hooks/useNetworkSim'
 import { useFrugalConnection } from '@/hooks/useFrugalConnection'
 import { REVEAL_EASE, useRevealProgress } from '@/lib/reveal'
 import { useReading } from '@/hooks/useReading'
+import { POSTER } from '@/lib/poster'
 import { withBase } from '@/lib/site'
-import { ProofHeading } from './ProofHeading'
+import { FRAME, PROOF_BOX, ProofHeading, SCREEN } from './ProofHeading'
 import { Readout } from './Readout'
+import { FOCUS, PRIMARY_LG } from './ui'
 
 /*
  * Two minutes of Big Buck Bunny, chosen so neither panel ever goes black.
@@ -24,13 +26,13 @@ import { Readout } from './Readout'
  */
 const CLIP = withBase('/media/demo-long.mp4')
 const SMALL_CLIP = withBase('/media/demo-480.mp4')
-const POSTER = withBase('/media/demo.jpg')
 
 /*
  * The rates are the worker's own, not approximations of them.
  *
  * The clip needs 24 kB/s; an earlier list said 50 against a clip that needed
- * discrepancy that costs a page its credibility on the one claim it is making.
+ * 48, which is the kind of small discrepancy that costs a page its credibility
+ * on the one claim it is making.
  * The id stays `slow3g` because the worker and its stored mode use it, and
  * renaming a persisted value to tidy a label is not worth the migration.
  */
@@ -48,9 +50,10 @@ const MODES: { id: NetworkMode; label: string; detail: string }[] = [
  * watching the two panels for ten seconds.
  */
 const VERDICT: Record<NetworkMode, string> = {
-  normal: 'Both play. Same file, same speed, same result - as you would hope.',
+  // A no-break space before the dash, so a wrapped line never starts with it.
+  normal: 'Both play. Same file, same speed, same result\u00a0— as you would hope.',
   slow3g:
-    'Both crawl, at the same rate, and both show they are waiting. No player can pull a 24 kB/s clip through a link a third that wide, and this one does not pretend to. Watch the buffer figures fall towards zero.',
+    'Both crawl at the same rate, and both show they are waiting. No player can pull a 24 kB/s clip through a link a third that wide. Watch the buffer figures fall towards zero.',
 }
 
 export function Proof() {
@@ -221,16 +224,11 @@ export function Proof() {
       className="relative h-[200svh] short:h-auto"
     >
       {/*
-        The top padding clears the site header, which sits over this part of the
-        page; the heading and the comparison are centred in the height left
-        below it. The column's width is capped by that height too - see
-        .proof-column - so the whole of it fits a laptop screen.
-
-        On a screen too short for that (the `short` variant, in globals.css) the
-        section stops pinning and scrolls like the rest of the page instead of
-        cutting its own bottom off.
+        The pinned box is shared with the placeholder (PROOF_BOX). The
+        column's width is capped by the height left in it - see .proof-column
+        - so the whole of it fits a laptop screen.
       */}
-      <div className="sticky top-0 flex h-svh flex-col justify-center gap-5 overflow-hidden px-5 pb-5 pt-16 sm:gap-7 sm:px-8 sm:pb-6 sm:pt-20 short:static short:h-auto short:overflow-visible">
+      <div className={PROOF_BOX}>
         <ProofHeading />
 
         <motion.div
@@ -331,7 +329,7 @@ export function Proof() {
              * region with its text already inside - the case that is usually
              * announced by nothing at all.
              */
-            <div className="mx-auto grid max-w-2xl text-center text-body leading-relaxed text-pretty text-muted sm:text-lead">
+            <div className="mx-auto grid w-full max-w-[40rem] text-center text-lead text-pretty text-ink">
               <p aria-hidden className="invisible col-start-1 row-start-1">
                 {VERDICT.slow3g}
               </p>
@@ -395,11 +393,11 @@ function Panel({
    */
   return (
     <div data-panel={tone} role="group" aria-labelledby={id} className="@container flex min-w-0 flex-col">
-      <div className={`aspect-video w-full overflow-hidden rounded-lg bg-black transition-shadow duration-500 ${ring}`}>
-        {children}
+      <div className={FRAME}>
+        <div className={`${SCREEN} transition-shadow duration-500 ${ring}`}>{children}</div>
       </div>
       <div className="mt-2.5 flex items-baseline justify-between gap-3 @min-[20rem]:mt-3">
-        <h2 id={id} className="truncate text-caption font-medium text-ink @min-[18rem]:text-body">
+        <h2 id={id} className="truncate text-caption font-semibold text-ink @min-[18rem]:text-body">
           {title}
         </h2>
         <p className="hidden truncate text-caption text-muted @min-[26rem]:block">{subtitle}</p>
@@ -448,7 +446,7 @@ function Controls({
     return (
       <p
         role="alert"
-        className="mx-auto max-w-2xl rounded-lg border border-bad/30 bg-bad/5 px-4 py-3 text-center text-caption text-ink"
+        className="mx-auto max-w-2xl rounded-note bg-bad/8 px-4 py-3 text-center text-caption text-ink ring-1 ring-bad/40 ring-inset"
       >
         The connection cannot be throttled here, so there is nothing honest to show. {unavailable}
       </p>
@@ -456,18 +454,25 @@ function Controls({
   }
 
   return (
-    // Wider than the control itself, so the sentence under it can stay on one
-    // line on a laptop; the control keeps its own narrower cap.
-    <div className="mx-auto flex w-full max-w-3xl flex-col items-center gap-2.5">
+    <div className="mx-auto flex w-full flex-col items-center">
       {/*
         A segmented control, and the chosen side is filled in ink. A tint or a
         hairline would be the quieter choice, and also one that measures well
         under the 3:1 a selected state needs to be seen at all.
+
+        The fill is on the chosen button itself rather than on a thumb sliding
+        behind both. A thumb is a sibling, so the label over it has the grey
+        track as its nearest painted ancestor - which is what the contrast
+        suite measures against, and about 1.1:1 - and forced colours drop it
+        outright. The slide is given up for a colour change.
+
+        In forced colours the track and the fill are dropped, so the track gets
+        a system border and the chosen side the system highlight.
       */}
       <div
         role="radiogroup"
         aria-label="Connection"
-        className="grid w-full max-w-xl grid-cols-2 gap-1 rounded-xl bg-panel p-1"
+        className="grid w-full max-w-[22rem] grid-cols-2 gap-1 rounded-full bg-panel p-1 forced-colors:border forced-colors:border-[ButtonText]"
       >
         {MODES.map((m, index) => {
           const on = mode === m.id
@@ -484,8 +489,12 @@ function Controls({
               disabled={pending}
               onClick={() => onPick(m.id)}
               onKeyDown={(event) => onKeyDown(event, index)}
-              className={`min-h-12 rounded-lg px-3 py-2 text-body font-medium transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink disabled:opacity-40 ${
-                on ? 'bg-ink text-on-ink' : 'text-muted hover:bg-raised hover:text-ink active:bg-line'
+              // 48px, not 44: the stage rests at 0.96 at the top of the page,
+              // and a 44px control there measures 42.2.
+              className={`min-h-12 rounded-full px-4 text-body font-medium transition-colors duration-200 ease-[cubic-bezier(0.32,0.72,0,1)] ${FOCUS} disabled:opacity-50 ${
+                on
+                  ? 'bg-ink text-on-ink forced-colors:forced-color-adjust-none forced-colors:bg-[Highlight] forced-colors:text-[HighlightText]'
+                  : 'text-muted hover:text-ink active:bg-raised'
               }`}
             >
               {m.label}
@@ -493,12 +502,12 @@ function Controls({
           )
         })}
       </div>
-      <p role="status" className="text-center text-caption tabular-nums leading-relaxed text-muted">
+      <p role="status" className="mt-2.5 text-center text-caption tabular-nums text-muted">
         {pending ? 'Starting the throttle…' : detail}
       </p>
-      {/* One line on a laptop rather than two: every line in this column is
-          height the two videos above it cannot have. */}
-      <p className="mx-auto max-w-3xl text-center text-caption leading-relaxed text-pretty text-muted">
+      {/* Every line in this column is height the two videos above it cannot
+          have, so it is one line wherever the column allows. */}
+      <p className="mt-1 max-w-[46rem] text-center text-caption text-balance text-muted">
         This page throttles its own connection with a service worker. Both players get the same bytes at the
         same moment.
       </p>
@@ -516,14 +525,10 @@ function Controls({
 function Consent({ onStart }: { onStart: () => void }) {
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col items-center gap-3 text-center">
-      <button
-        type="button"
-        onClick={onStart}
-        className="min-h-12 rounded-lg bg-ink px-6 py-3 text-body font-medium text-on-ink transition-colors hover:bg-ink-hover active:bg-ink-press focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
-      >
+      <button type="button" onClick={onStart} className={PRIMARY_LG}>
         Play the comparison
       </button>
-      <p className="max-w-md text-caption leading-relaxed text-muted">
+      <p className="max-w-md text-caption text-pretty text-muted">
         It streams the same clip to both players, about 6 MB. Your browser said this
         connection should be spent carefully, so it is waiting for you.
       </p>
