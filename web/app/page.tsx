@@ -20,8 +20,8 @@ export default function Page() {
         contentinfo role, so the page had no way for anyone navigating by
         landmark to reach the credits at all.
       */}
-      <footer className="border-t border-line px-5 sm:px-8">
-        <div className="mx-auto flex max-w-6xl flex-col gap-1 py-8 text-center text-caption text-muted sm:flex-row sm:justify-between sm:text-left">
+      <footer className="border-t border-line bg-band px-(--gutter)">
+        <div className="mx-auto flex max-w-(--page-max) flex-col gap-1 py-6 text-center text-micro text-balance text-muted sm:flex-row sm:justify-between sm:py-8 sm:text-left">
           <p>Clip: Big Buck Bunny © Blender Foundation, CC BY 3.0</p>
           <p>X-Player is MIT licensed</p>
         </div>
