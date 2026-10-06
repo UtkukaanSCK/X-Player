@@ -1,117 +1,54 @@
-'use client'
-
-import { useRef, useState } from 'react'
-import { motion, useReducedMotion, useScroll, useTransform } from 'motion/react'
-import { REVEAL_EASE, useRevealProgress } from '@/lib/reveal'
 import { REPO_URL } from '@/lib/site'
+import { PRIMARY_LG } from './ui'
 
+/**
+ * Where the code is, said once.
+ *
+ * Rendered on the server and nothing more: no state, no motion. It used to rise
+ * and fade in with the scroll, and an element faded to nothing is still in the
+ * tab order, so a keyboard user could land on the button before it could be
+ * seen; settling the animation on focus patched that and made a mouse press
+ * slide the button out from under the cursor. The comparison settling as it
+ * pins is the one movement the page makes.
+ *
+ * On the ground, between the wizard's band and the footer's, so the change of
+ * surface is what ends one section and starts the next.
+ */
 export function Source() {
-  const container = useRef<HTMLElement>(null)
-  const reduced = useReducedMotion()
-
-  /*
-   * Measured against a section that is not itself sticky, and only while it is
-   * entering. Scrubbing a target inside a sticky container gave readings that
-   * went up and then back down, because a pinned element stops moving and the
-   * progress derived from its box stops meaning anything.
-   */
-  const { scrollYProgress } = useScroll({ target: container, offset: ['start end', 'center center'] })
-
-  /*
-   * Rises into the space the comparison is vacating.
-   *
-   * Thirty-two pixels and a fade, and no scaling. It is enough to read as the
-   * section arriving while the one above leaves, and small enough that the page
-   * never looks like it is performing; it used to travel ninety pixels and
-   * grow, which drew more attention than the words it was carrying.
-   */
-  const progress = useRevealProgress(scrollYProgress, !reduced)
-
-  const y = useTransform(progress, [0, 0.3], reduced ? [0, 0] : [32, 0], { ease: REVEAL_EASE })
-  const opacity = useTransform(progress, [0, 0.25], reduced ? [1, 1] : [0, 1], { ease: REVEAL_EASE })
-
-  /*
-   * A section that has been tabbed into stops hiding.
-   *
-   * The reveal is driven by scroll, and an element faded to nothing is still in
-   * the tab order - so a keyboard user could land on a download link that was
-   * not on the screen. Marking the section inert until it is revealed would be
-   * worse: someone who never scrolls could then never reach it at all. Focus
-   * settles the animation instead, which is the one reading of "reveal" that
-   * serves both.
-   */
-  const [revealed, setRevealed] = useState(false)
-
   return (
-    <section
-      ref={container}
-      id="source"
-      /*
-       * Nothing marks where the section above ends: no rule, no gap, no change
-       * of ground. The comparison scrolls away while this rises to meet it, so
-       * the two read as one movement even though they are separate elements
-       * with separate anchors.
-       */
-      aria-labelledby="source-heading"
-      className="relative flex min-h-[56vh] items-center justify-center px-5 py-20 sm:px-8 sm:py-24"
-    >
-      <div className="w-full">
-        <motion.div
-          data-stage="source"
-          style={revealed ? { y: 0, opacity: 1 } : { y, opacity }}
-          /*
-           * Keyboard focus only.
-           *
-           * Settling on any focus meant a mouse press snapped the section up
-           * between mousedown and mouseup, so the card slid out from under the
-           * cursor and the click never landed. :focus-visible is exactly the
-           * distinction wanted here - it is true when the browser would draw a
-           * focus ring, which is the case this exists for.
-           */
-          onFocus={(event) => {
-            if (event.target instanceof Element && event.target.matches(':focus-visible')) setRevealed(true)
-          }}
-          className="mx-auto w-full max-w-2xl text-center"
-        >
-          <h2
-            id="source-heading"
-            className="text-[length:var(--text-section)] font-semibold leading-[1.08] tracking-[-0.025em] text-balance text-ink"
-          >
-            All of it is on GitHub.
-          </h2>
+    <section id="source" aria-labelledby="source-heading" className="px-(--gutter) py-(--section-y)">
+      <div className="mx-auto max-w-[40rem] text-center">
+        <h2 id="source-heading" className="text-section text-balance text-ink">
+          All of it is on GitHub.
+        </h2>
 
-          <p className="mx-auto mt-4 max-w-xl text-lead leading-relaxed text-pretty text-muted">
-            The player, the throttling worker behind the comparison above, and the tests that keep it honest.
-            MIT licensed, so read it, take it, change it.
-          </p>
+        <p className="mx-auto mt-4 max-w-[34rem] text-lead text-pretty text-muted">
+          The player, the throttling worker behind the comparison above, and the tests that keep it honest.
+          MIT licensed, so read it, take it, change it.
+        </p>
 
-          <div className="mt-8 flex flex-col items-center gap-3">
-            <a
-              href={REPO_URL}
-              target="_blank"
-              rel="noreferrer noopener"
-              className="inline-flex min-h-12 items-center gap-2.5 rounded-lg bg-ink px-5 text-body font-medium text-on-ink transition-colors hover:bg-ink-hover active:bg-ink-press focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
-            >
-              <GitHubMark />
-              View on GitHub
-              <span className="sr-only"> (opens in a new tab)</span>
-            </a>
+        <div className="mt-8 flex flex-col items-center gap-3">
+          <a href={REPO_URL} target="_blank" rel="noreferrer noopener" className={PRIMARY_LG}>
+            <GitHubMark />
+            View on GitHub
+            <span className="sr-only"> (opens in a new tab)</span>
+          </a>
 
-            {/*
-              The address, not a second link to the same place.
-              There were two adjacent links here pointing at one destination:
-              two tab stops and two identical announcements for one thing. The
-              URL is worth showing - it is how someone checks where the button
-              goes before pressing it - so it stays, as text.
-            */}
-            <p className="text-caption text-muted">github.com/UtkukaanSCK/X-Player</p>
-          </div>
-        </motion.div>
+          {/*
+            The address, not a second link to the same place.
+            There were two adjacent links here pointing at one destination:
+            two tab stops and two identical announcements for one thing. The
+            URL is worth showing - it is how someone checks where the button
+            goes before pressing it - so it stays, as text.
+          */}
+          <p className="text-caption text-muted">github.com/UtkukaanSCK/X-Player</p>
+        </div>
       </div>
     </section>
   )
 }
 
+/* Drawn in the text colour, so forced colours repaint it with the label. */
 function GitHubMark() {
   return (
     <svg width="17" height="17" viewBox="0 0 16 16" fill="currentColor" aria-hidden focusable="false">
