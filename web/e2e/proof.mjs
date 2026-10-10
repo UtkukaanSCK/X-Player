@@ -392,38 +392,328 @@ await seeking.close()
  * Both directions are checked. A guard that holds everything back is easy and
  * useless; the one that matters is that nobody else is affected.
  */
-for (const saveData of [true, false]) {
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 } })
-  await context.addInitScript((on) => {
+/*
+ * Watches focus from inside the page, by what the browser reports, not by
+ * looking now and then.
+ *
+ * A polled check cannot be trusted with "focus never rests on <body>": the
+ * moment lasts a few milliseconds, and a 100 ms poll steps over it. Three
+ * sources are kept, and any one of them is enough to fail:
+ *
+ *  - every focusin and focusout, with a timestamp. A focusout with no
+ *    `relatedTarget` is focus going nowhere; the time to the next focusin is
+ *    how long it stayed there. (The consent button's own is the press itself,
+ *    its element being removed, and is not counted.)
+ *  - a snapshot of `document.activeElement` after every DOM change under the
+ *    page. Those callbacks run once the task that changed the DOM has ended,
+ *    so they see what the browser would paint: a focus handed on in the same
+ *    task is seen on its new holder, one handed on a task later is seen on
+ *    <body>, however short the wait.
+ *  - the same snapshot on every animation frame, for what changes without
+ *    touching the DOM.
+ *
+ * Installed before the page loads, but only `armed` once the check is about to
+ * press the button, because the focus before that is not under test.
+ */
+const trackFocus = () => {
+  const track = { armed: false, ins: 0, events: [], rests: [], restCount: 0, gaps: [], outAt: null, outBy: '', frames: 0 }
+  window.__focus = track
+  const name = (el) =>
+    !el ? 'nothing' : el === document.body ? 'body' : `${el.tagName.toLowerCase()}${el.getAttribute('role') ? `[${el.getAttribute('role')}]` : ''}`
+  const now = () => Math.round(performance.now() * 10) / 10
+  const snap = (why) => {
+    if (!track.armed || document.activeElement !== document.body) return
+    track.restCount += 1
+    if (track.rests.length < 3) track.rests.push(`${why} @${now()}ms`)
+  }
+  document.addEventListener(
+    'focusin',
+    (event) => {
+      track.ins += 1
+      if (!track.armed) return
+      track.events.push(`${now()}ms focusin ${name(event.target)}`)
+      if (track.outAt !== null) {
+        track.gaps.push(`${track.outBy} -> ${name(event.target)} after ${(performance.now() - track.outAt).toFixed(1)}ms`)
+        track.outAt = null
+      }
+    },
+    true,
+  )
+  document.addEventListener(
+    'focusout',
+    (event) => {
+      if (!track.armed) return
+      track.events.push(`${now()}ms focusout ${name(event.target)} -> ${name(event.relatedTarget)}`)
+      const pressed = (event.target.textContent ?? '').includes('Play the comparison')
+      if (event.relatedTarget === null && !pressed) {
+        track.outAt = performance.now()
+        track.outBy = name(event.target)
+      }
+    },
+    true,
+  )
+  new MutationObserver(() => snap('after a DOM change')).observe(document, {
+    subtree: true,
+    childList: true,
+    attributes: true,
+    attributeFilter: ['tabindex', 'disabled'],
+  })
+  const frame = () => {
+    if (track.armed) track.frames += 1
+    snap('on a frame')
+    requestAnimationFrame(frame)
+  }
+  requestAnimationFrame(frame)
+}
+
+/** What trackFocus saw, as plain data. `stuck` is a focus that went nowhere and has not come back. */
+const readFocus = (page) =>
+  page.evaluate(() => {
+    const t = window.__focus
+    const el = document.activeElement
+    return {
+      ins: t.ins,
+      frames: t.frames,
+      events: t.events,
+      rests: t.rests,
+      restCount: t.restCount,
+      gaps: t.gaps,
+      stuck: t.outAt !== null,
+      onBody: el === document.body,
+      onChecked: Boolean(el?.matches('#proof [role="radio"][aria-checked="true"]')),
+      onGroup: el?.getAttribute('role') === 'radiogroup',
+      inAlert: Boolean(el?.closest('#proof [role="alert"]')),
+      at: el ? `${el.tagName.toLowerCase()}${el.getAttribute('role') ? `[${el.getAttribute('role')}]` : ''}` : 'none',
+      gone: ![...document.querySelectorAll('#proof button')].some((x) => x.textContent?.includes('Play the comparison')),
+    }
+  })
+
+/**
+ * A visitor on a metered link, in a browser set up the way the check needs.
+ *
+ *  ready    the throttle is up before they press anything
+ *  pending  registering the service worker is held back, so the throttle is
+ *           still starting when they press and its options cannot be pressed
+ *  bare     there is no service worker API at all, so it can never start
+ */
+async function meteredVisitor(mode, { width = 390, height = 844, reducedMotion = 'no-preference' } = {}) {
+  const context = await browser.newContext({ viewport: { width, height }, reducedMotion })
+  await context.addInitScript(() => {
     Object.defineProperty(navigator, 'connection', {
       configurable: true,
-      get: () => ({ saveData: on, effectiveType: '4g' }),
+      get: () => ({ saveData: true, effectiveType: '4g' }),
     })
-  }, saveData)
-  const metered = await context.newPage()
+  })
+  if (mode === 'pending') {
+    await context.addInitScript(() => {
+      const register = ServiceWorkerContainer.prototype.register
+      ServiceWorkerContainer.prototype.register = function (...args) {
+        return new Promise((done) => setTimeout(done, 6000)).then(() => register.apply(this, args))
+      }
+    })
+  }
+  if (mode === 'bare') {
+    await context.addInitScript(() => {
+      delete Navigator.prototype.serviceWorker
+    })
+  }
+  await context.addInitScript(trackFocus)
+  const page = await context.newPage()
+  await page.goto(BASE, { waitUntil: 'domcontentloaded' })
+  return { context, page }
+}
+
+/** Focus the consent button, check it has it, and press Enter with the watcher armed. */
+async function pressConsent(page, label) {
+  const consent = page.locator('#proof button', { hasText: 'Play the comparison' })
+  await consent.waitFor({ timeout: 30_000 })
+  // The button is in the server's HTML, and a key pressed before React has
+  // attached to it is dropped. React leaves a `__reactProps$` key on an element
+  // it has taken over, which nothing else does.
+  await page.waitForFunction(
+    () => {
+      const button = [...document.querySelectorAll('#proof button')].find((x) => x.textContent?.includes('Play the comparison'))
+      return Boolean(button) && Object.keys(button).some((key) => key.startsWith('__reactProps$'))
+    },
+    null,
+    { timeout: 30_000 },
+  )
+  check(`React has taken over the consent button before it is pressed (${label})`, await consent.evaluate((el) => Object.keys(el).some((key) => key.startsWith('__reactProps$'))))
+  await consent.focus()
+  check(`the consent button holds focus before it is pressed (${label})`, await consent.evaluate((el) => el === document.activeElement))
+  await page.evaluate(() => {
+    window.__focus.armed = true
+  })
+  await page.keyboard.press('Enter')
+}
+
+/** Whether every radio is disabled, which is what "the throttle is still starting" looks like. */
+const radiosDisabled = (page) =>
+  page.evaluate(() => {
+    const radios = [...document.querySelectorAll('#proof [role="radio"]')]
+    return radios.length > 0 && radios.every((r) => r.disabled)
+  })
+
+/** The first few times the body held focus, and how many there were in all. */
+const restsOf = (seen) => `${seen.restCount} times on body: ${seen.rests.join('; ')}`
+
+/** The assertions every keyboard press owes, whatever the throttle does. */
+function checkFocusKept(seen, label, endsWell, endsAt) {
+  check(`the watcher was running (${label})`, seen.events.length >= 1 && seen.frames >= 3 && seen.gone, `${seen.events.length} events, ${seen.frames} frames`)
+  check(`focus never rests on the page body (${label})`, seen.restCount === 0, restsOf(seen))
+  check(`and none is dropped between one holder and the next (${label})`, seen.gaps.length === 0 && !seen.stuck, seen.gaps.join('; '))
+  check(`and it ends ${endsAt} (${label})`, endsWell, `focus is on ${seen.at}`)
+}
+
+/*
+ * Both directions are checked, and the ordinary one first: the page must take
+ * nothing from a visitor who did not ask to be spared the download.
+ */
+{
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 } })
+  await context.addInitScript(() => {
+    Object.defineProperty(navigator, 'connection', {
+      configurable: true,
+      get: () => ({ saveData: false, effectiveType: '4g' }),
+    })
+  })
+  await context.addInitScript(trackFocus)
+  const ordinary = await context.newPage()
   let videoBytes = 0
-  metered.on('response', (res) => {
+  ordinary.on('response', (res) => {
     if ((res.headers()['content-type'] ?? '').startsWith('video/')) {
       videoBytes += Number(res.headers()['content-length'] ?? 0)
     }
   })
-  await metered.goto(BASE, { waitUntil: 'domcontentloaded' })
-  await metered.waitForTimeout(6000)
-  const state = await metered.evaluate(() => ({
+  await ordinary.goto(BASE, { waitUntil: 'domcontentloaded' })
+  await ordinary.waitForSelector('#proof [role="radio"]:not([disabled])', { timeout: 30_000 })
+  await ordinary.waitForTimeout(6000)
+  const seen = await readFocus(ordinary)
+  const loading = await ordinary.evaluate(() => [...document.querySelectorAll('#proof video')].filter((v) => v.currentSrc).length)
+  check('an ordinary visitor has no consent button to press', seen.gone)
+  check('and no focus was taken from them or given to them, on load or when it was ready', seen.ins === 0 && seen.onBody, `${seen.ins} focus events, focus is on ${seen.at}`)
+  check('an ordinary link is not held back', loading === 2 && videoBytes > 0, `${loading} players, ${(videoBytes / 1048576).toFixed(1)} MB`)
+  await context.close()
+}
+
+/*
+ * Pressing the button removes it, so focus has to be handed to something that
+ * is still there; left to itself it falls to <body> and a keyboard or screen
+ * reader user is thrown back to the top of the page.
+ */
+{
+  const { context, page } = await meteredVisitor('ready')
+  let videoBytes = 0
+  page.on('response', (res) => {
+    if ((res.headers()['content-type'] ?? '').startsWith('video/')) {
+      videoBytes += Number(res.headers()['content-length'] ?? 0)
+    }
+  })
+  await page.waitForTimeout(6000)
+  const state = await page.evaluate(() => ({
     loading: [...document.querySelectorAll('#proof video')].filter((v) => v.currentSrc).length,
     saysCost: (document.querySelector('#proof')?.textContent ?? '').includes('6 MB'),
   }))
+  check('a metered link downloads nothing until asked', state.loading === 0 && videoBytes === 0, `${state.loading} players, ${videoBytes} bytes`)
+  check('and it says what pressing the button will cost', state.saysCost)
+  await page.waitForFunction(() => Boolean(navigator.serviceWorker.controller), null, { timeout: 30_000 })
+  check('the throttle was up before the button was pressed', await page.evaluate(() => Boolean(navigator.serviceWorker.controller)))
+  await pressConsent(page, 'throttle ready')
+  await page.waitForSelector('#proof [role="radio"][aria-checked="true"]:not([disabled])', { timeout: 30_000 })
+  await page.waitForTimeout(500)
+  const seen = await readFocus(page)
+  checkFocusKept(seen, 'throttle ready', seen.onChecked, 'on the chosen connection option')
+  await page.waitForTimeout(5500)
+  const started = await page.evaluate(() => [...document.querySelectorAll('#proof video')].filter((v) => v.currentSrc).length)
+  check('pressing it runs the comparison', started === 2, `${started} players`)
+  await context.close()
+}
 
-  if (saveData) {
-    check('a metered link downloads nothing until asked', state.loading === 0 && videoBytes === 0, `${state.loading} players, ${videoBytes} bytes`)
-    check('and it says what pressing the button will cost', state.saysCost)
-    await metered.locator('#proof button', { hasText: 'Play the comparison' }).click()
-    await metered.waitForTimeout(6000)
-    const started = await metered.evaluate(() => [...document.querySelectorAll('#proof video')].filter((v) => v.currentSrc).length)
-    check('pressing it runs the comparison', started === 2, `${started} players`)
+/*
+ * The same press while the throttle is still starting. The options are
+ * disabled and cannot hold focus, so the group does until they can and then
+ * hands it on. This is the path the run above never reaches, its six-second
+ * wait having let the worker finish first.
+ */
+{
+  const { context, page } = await meteredVisitor('pending')
+  await pressConsent(page, 'throttle starting')
+  await page.waitForTimeout(300)
+  const starting = await readFocus(page)
+  check('the throttle was really still starting when the button was pressed', await radiosDisabled(page))
+  check('while it starts, the group holds focus', starting.onGroup, `focus is on ${starting.at}`)
+  check('and the page body has not had it meanwhile', starting.restCount === 0 && starting.gaps.length === 0, `${restsOf(starting)} ${starting.gaps.join('; ')}`)
+  await page.waitForSelector('#proof [role="radio"]:not([disabled])', { timeout: 30_000 })
+  await page.waitForTimeout(500)
+  const seen = await readFocus(page)
+  checkFocusKept(seen, 'throttle starting', seen.onChecked, 'on the chosen connection option once it is ready')
+  await context.close()
+}
+
+/*
+ * A visitor who scrolls away while it starts is not pulled back to the controls
+ * when it is ready. Moving focus there would scroll to it - 1300 to 1450px on
+ * a phone and on a desktop - from wherever they have got to.
+ *
+ * Run as a visitor with no restriction (normal motion) and one with reduced
+ * motion, on a phone and a desktop width, because the section lays itself out
+ * differently in each. Scrolled three ways: straight to the end, which raises
+ * no input event of its own, as dragging a scrollbar does; by the wheel; and by
+ * the End key from the group that holds focus.
+ */
+for (const [width, height, reducedMotion, how] of [
+  [390, 844, 'no-preference', 'scrollTo'],
+  [390, 844, 'reduce', 'scrollTo'],
+  [1440, 900, 'no-preference', 'scrollTo'],
+  [1440, 900, 'reduce', 'scrollTo'],
+  [390, 844, 'no-preference', 'wheel'],
+  [390, 844, 'no-preference', 'End key'],
+]) {
+  const label = `${width}px, ${reducedMotion === 'reduce' ? 'reduced motion' : 'normal motion'}, ${how}`
+  const { context, page } = await meteredVisitor('pending', { width, height, reducedMotion })
+  check(
+    `the visitor's motion setting took effect (${label})`,
+    await page.evaluate((r) => matchMedia(`(prefers-reduced-motion: ${r})`).matches, reducedMotion),
+  )
+  await pressConsent(page, label)
+  await page.waitForTimeout(300)
+  check(`the throttle was really still starting (${label})`, await radiosDisabled(page))
+  if (how === 'scrollTo') {
+    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight))
+  } else if (how === 'wheel') {
+    await page.mouse.move(width / 2, height / 2)
+    await page.mouse.wheel(0, 100_000)
   } else {
-    check('an ordinary link is not held back', state.loading === 2 && videoBytes > 0, `${state.loading} players, ${(videoBytes / 1048576).toFixed(1)} MB`)
+    await page.keyboard.press('End')
   }
+  await page.waitForTimeout(600)
+  const away = await page.evaluate(() => Math.round(window.scrollY))
+  check(`the page really did scroll away (${label})`, away > 400, `y ${away}`)
+  await page.waitForSelector('#proof [role="radio"]:not([disabled])', { timeout: 30_000 })
+  await page.waitForTimeout(800)
+  const after = await page.evaluate(() => Math.round(window.scrollY))
+  check(`and ready does not jump the page back to the controls (${label})`, Math.abs(after - away) <= 2, `y ${away} then ${after}, moved ${Math.abs(after - away)}px`)
+  // Not pulled to the radio, and not dropped either: still on the group that held it.
+  const kept = await readFocus(page)
+  check(`and focus stays where it was, on the group (${label})`, kept.onGroup && kept.restCount === 0, `focus is on ${kept.at}, ${restsOf(kept)}`)
+  await context.close()
+}
+
+/*
+ * The same press when the connection cannot be throttled at all.
+ *
+ * With no service worker API the page shows an alert instead of the controls,
+ * so the pressed button's replacement is the alert, and that is where focus
+ * must go.
+ */
+{
+  const { context, page } = await meteredVisitor('bare')
+  check('the service worker API is really absent for this check', await page.evaluate(() => !('serviceWorker' in navigator)))
+  await pressConsent(page, 'no service worker')
+  await page.waitForSelector('#proof p[role="alert"]', { timeout: 30_000 })
+  await page.waitForTimeout(500)
+  const seen = await readFocus(page)
+  checkFocusKept(seen, 'no service worker', seen.inAlert, 'on the alert that explains why')
   await context.close()
 }
 
