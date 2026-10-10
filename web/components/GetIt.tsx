@@ -1,8 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { motion, useReducedMotion, useScroll, useTransform } from 'motion/react'
-import { REVEAL_EASE, useRevealProgress } from '@/lib/reveal'
+import { useRef, useState, useSyncExternalStore } from 'react'
 
 import { assetsFor, MEASURED_AT, SNIPPETS, type Playing, type Target, type Use } from '@/lib/downloads'
 import {
@@ -16,6 +14,7 @@ import {
   sourcePublished,
   type PlatformId,
 } from '@/lib/releases'
+import { FOCUS_INSET, PRIMARY, SECONDARY, TEXT_LINK } from './ui'
 
 /**
  * Two questions, then the exact thing you need.
@@ -49,42 +48,44 @@ const PLAYING: { id: Playing; label: string; hint: string }[] = [
 
 const kb = (bytes: number) => `${(bytes / 1024).toFixed(1)} kB`
 
-export function GetIt() {
-  const container = useRef<HTMLElement>(null)
-  const reduced = useReducedMotion()
+/*
+ * A borderless tile on the band. Under more contrast it gets the edge a control
+ * has. Forced colours paint band and tile the same Canvas, so there a border is
+ * the only thing left that shows where a tile is.
+ */
+const TILE =
+  'overflow-hidden rounded-tile bg-tile contrast-more:ring-1 contrast-more:ring-control contrast-more:ring-inset forced-colors:border'
 
+/*
+ * A tint inside a tile: the code strip and a file loaded later. In light it is
+ * `raised`, not `panel`, because panel is the band's own grey and a strip of it
+ * across a white tile read as a hole cut through to the band. In dark the tile
+ * is already lighter than the band and panel lighter again, so it stays.
+ */
+const STRIP = 'bg-raised dark:bg-panel'
+
+/* The user agent never changes, so there is nothing to subscribe to. */
+const subscribeToNothing = () => () => {}
+
+export function GetIt() {
   const [use, setUse] = useState<Use>('watch')
   const [target, setTarget] = useState<Target>('html')
   const [playing, setPlaying] = useState<Playing>('files')
-  const [platform, setPlatform] = useState<PlatformId | null>(null)
-
-  // After mount: the server has no user agent, and guessing during render would
-  // make the markup disagree with itself.
-  useEffect(() => setPlatform(guessPlatform(navigator.userAgent)), [])
-
-  const { scrollYProgress } = useScroll({ target: container, offset: ['start end', 'center center'] })
-  const progress = useRevealProgress(scrollYProgress, !reduced)
-
-  /* Thirty-two pixels and a fade, the same as the section after it: enough to
-     read as arriving, and quiet enough that the answers stay the subject. */
-  const y = useTransform(progress, [0, 0.35], reduced ? [0, 0] : [32, 0], { ease: REVEAL_EASE })
-  const opacity = useTransform(progress, [0, 0.3], reduced ? [1, 1] : [0, 1], { ease: REVEAL_EASE })
 
   /*
-   * A section that has been tabbed into stops hiding.
-   *
-   * The reveal is driven by scroll, and an element faded to nothing is still in
-   * the tab order - so a keyboard user could land on a download link that was
-   * not on the screen. Marking the section inert until it is revealed would be
-   * worse: someone who never scrolls could then never reach it at all. Focus
-   * settles the animation instead, which is the one reading of "reveal" that
-   * serves both.
+   * The server has no user agent, so it renders as if the platform were
+   * unknown, and so does the first render on the client; the guess arrives in
+   * the render straight after. Guessing during that first render would make the
+   * markup disagree with itself.
    */
-  const [revealed, setRevealed] = useState(false)
+  const platform = useSyncExternalStore<PlatformId | null>(
+    subscribeToNothing,
+    () => guessPlatform(navigator.userAgent),
+    () => null,
+  )
 
   return (
     <section
-      ref={container}
       id="get"
       /*
        * No viewport-height floor here.
@@ -94,30 +95,17 @@ export function GetIt() {
        * and a floor measured in vh sized the section for the tall answer, so
        * the short one sat marooned in a third of a screen of nothing. Padding
        * gives it room; the content decides the rest.
+       *
+       * Nothing here moves on its own. It used to rise and fade in with the
+       * scroll, and a section faded to nothing is still in the tab order, so a
+       * keyboard user could land on a download that was not on the screen. The
+       * comparison above settling as it pins is the one movement the page makes.
        */
       aria-labelledby="get-heading"
-      className="relative flex items-center justify-center px-5 py-24 sm:px-8 sm:py-32"
+      className="bg-band px-(--gutter) py-(--section-y)"
     >
-      <motion.div
-        style={revealed ? { y: 0, opacity: 1 } : { y, opacity }}
-        /*
-         * Keyboard focus only.
-         *
-         * Settling on any focus meant a mouse press snapped the section up
-         * between mousedown and mouseup, so the card slid out from under the
-         * cursor and the click never landed. :focus-visible is exactly the
-         * distinction wanted here - it is true when the browser would draw a
-         * focus ring, which is the case this exists for.
-         */
-        onFocus={(event) => {
-          if (event.target instanceof Element && event.target.matches(':focus-visible')) setRevealed(true)
-        }}
-        className="mx-auto w-full max-w-6xl"
-      >
-        <h2
-          id="get-heading"
-          className="max-w-3xl text-[length:var(--text-section)] font-semibold leading-[1.08] tracking-[-0.025em] text-balance text-ink"
-        >
+      <div className="mx-auto w-full max-w-(--page-max)">
+        <h2 id="get-heading" className="max-w-3xl text-section text-balance text-ink">
           Take only what you need.
         </h2>
 
@@ -128,7 +116,7 @@ export function GetIt() {
           file rows threw name and size to opposite ends of it. The questions
           take the narrower column because they are short by nature.
         */}
-        <div className="mt-10 grid gap-10 md:grid-cols-[minmax(0,0.85fr)_minmax(0,1fr)] md:gap-10 lg:gap-16">
+        <div className="mt-10 grid gap-10 sm:mt-14 md:grid-cols-[minmax(0,0.85fr)_minmax(0,1fr)] lg:gap-16">
           <div className="grid content-start gap-8">
             <Question label="What are you doing?" options={USES} value={use} onChange={(next) => setUse(next as Use)} />
 
@@ -159,7 +147,7 @@ export function GetIt() {
             announcement it exists for never happened. Same element, same
             position, changing children.
           */}
-          <div className="grid content-start gap-4">
+          <div className="grid content-start gap-5">
             <Manifest
               title={use === 'watch' ? 'The desktop app' : 'What you need'}
               count={use === 'watch' ? `version ${APP_VERSION}` : fileCount(target, playing)}
@@ -169,7 +157,7 @@ export function GetIt() {
             {use === 'embed' && <Snippet target={target} />}
           </div>
         </div>
-      </motion.div>
+      </div>
     </section>
   )
 }
@@ -181,7 +169,9 @@ export function GetIt() {
  *
  * The questions are not a numbered sequence - the later two only appear because
  * of the first answer - so they carry no step numbers, and the options share
- * one outline with rules between them rather than each drawing its own.
+ * one tile with rules between them rather than each drawing its own. A rule
+ * starts at the text, not at the tile's edge, the way a grouped list draws it,
+ * and is a border rather than a filled line so that forced colours keep it.
  */
 function Question({
   label,
@@ -210,8 +200,8 @@ function Question({
 
   return (
     <div>
-      <p className="mb-3 text-title font-medium text-ink">{label}</p>
-      <div className="overflow-hidden rounded-xl border border-line" role="radiogroup" aria-label={label}>
+      <p className="mb-3.5 text-title text-ink">{label}</p>
+      <div className={TILE} role="radiogroup" aria-label={label}>
         {options.map((option, index) => {
           const on = value === option.id
           return (
@@ -226,25 +216,36 @@ function Question({
               tabIndex={on ? 0 : -1}
               onClick={() => onChange(option.id)}
               onKeyDown={(event) => onKeyDown(event, index)}
-              className={`flex w-full items-start gap-3.5 border-t border-line px-4 py-3.5 text-left transition-colors first:border-t-0 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink ${
-                on ? 'bg-panel' : 'bg-ground hover:bg-panel active:bg-raised'
-              }`}
+              // No tint on the chosen row: the mark carries the state, and a
+              // tint is what hover is for. Light hovers and presses one step
+              // darker than the strips, since panel is the band's grey; more
+              // contrast turns `line` into control grey, too dark to press on.
+              // The rule's inset is padding + mark + gap: 1 + 1.375 + 0.875 =
+              // 3.25rem, and 3.5rem from sm, where the padding is 1.25. The end
+              // rows take the tile's corners, so the focus ring follows the
+              // curve rather than being cut off by the tile's clip.
+              className={`group relative flex min-h-16 w-full items-center gap-3.5 px-4 py-3 text-left transition-colors duration-150 first:rounded-t-tile last:rounded-b-tile hover:bg-raised active:bg-line dark:hover:bg-panel dark:active:bg-raised contrast-more:active:bg-raised sm:px-5 ${FOCUS_INSET} before:absolute before:top-0 before:right-0 before:left-[3.25rem] before:border-t before:border-line first:before:hidden sm:before:left-[3.5rem]`}
             >
               {/*
-                The mark's ring is `control`, the grey that clears the 3:1 a
-                control's only boundary is asked for; a hairline ring would be
-                a fraction of that and would stop reading as something to press.
+                Drawn as a border in both states - a thin ring, or one so thick
+                it reads as a filled disc with a small centre - because forced
+                colours keep borders and drop fills. A dot filled in ink left
+                both options as empty rings there. The thin ring is `control`,
+                the grey that clears the 3:1 a control's only edge is asked for,
+                and 2px: 1.5px drew as one soft pixel on a 1x screen, lighter
+                than the token. On the hover and press tints it darkens to
+                `muted`, because `control` on a tint falls under 3:1.
               */}
               <span
                 aria-hidden
-                className={`mt-[0.2rem] grid size-[1.125rem] flex-none place-items-center rounded-full border-[1.5px] ${
-                  on ? 'border-ink' : 'border-control'
+                className={`size-[1.375rem] flex-none rounded-full transition-[border-width,border-color] duration-150 ${
+                  on
+                    ? 'border-[7px] border-ink'
+                    : 'border-2 border-control group-hover:border-muted group-active:border-muted'
                 }`}
-              >
-                {on && <span className="size-2 rounded-full bg-ink" />}
-              </span>
-              <span className="grid gap-0.5">
-                <span className={`text-lead text-ink ${on ? 'font-medium' : ''}`}>{option.label}</span>
+              />
+              <span className="grid min-w-0 gap-0.5">
+                <span className={`text-body text-ink ${on ? 'font-medium' : ''}`}>{option.label}</span>
                 <span className="text-caption text-muted">{option.hint}</span>
               </span>
             </button>
@@ -255,23 +256,29 @@ function Question({
   )
 }
 
-/*
- * Two kinds of action, and only one is ever filled. The download that matches
- * the visitor's own platform is the primary one; everything else is outlined
- * in `control`, which is the 3:1 edge a control is asked for.
- */
-const ACTION =
-  'inline-flex min-h-11 items-center rounded-lg border border-control bg-ground px-4 text-body font-medium text-ink transition-colors hover:bg-panel active:bg-raised focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink'
-const PRIMARY =
-  'inline-flex min-h-11 items-center rounded-lg bg-ink px-4 text-body font-medium text-on-ink transition-colors hover:bg-ink-hover active:bg-ink-press focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink'
-
 function fileCount(target: Target, playing: Playing) {
   const n = assetsFor(target, playing).length
   return `${n} file${n === 1 ? '' : 's'}`
 }
 
+/* A file or a download, one to a row; rows are separated by a rule above each. */
+const ROW = 'border-t border-line px-4 py-4 sm:px-5'
+
+/*
+ * A name and its figure, on one line while both fit. With the text at 200% on
+ * a phone they did not, and the figure ran past the tile's edge, where the
+ * clip cut it off; now it wraps under the name and keeps to the right. The
+ * name gives way first (`min-w-0` on it, `ml-auto` on the figure).
+ */
+const HEAD = 'flex flex-wrap items-baseline justify-between gap-x-3'
+
 /* ------------------------------------------------------------------- the app */
 
+/*
+ * Two kinds of action, and only one is ever filled. The download that matches
+ * the visitor's own platform is the primary one; everything else is outlined
+ * in `control`, which is the 3:1 edge a control is asked for.
+ */
 function AppResult({ platform }: { platform: PlatformId | null }) {
   const ordered = platform
     ? [...DOWNLOADS].sort((a, b) => Number(b.id === platform) - Number(a.id === platform))
@@ -279,23 +286,23 @@ function AppResult({ platform }: { platform: PlatformId | null }) {
 
   if (!published) {
     return (
-      <div className="px-5 py-5">
-        <p className="text-body leading-relaxed text-ink">
+      <div className="border-t border-line px-4 py-5 sm:px-5">
+        <p className="text-body text-ink">
           Not released yet. It builds and runs — the Windows installer is {DOWNLOADS[0].sizeMb} MB and has been
           produced and used — but nothing has been published to download.
         </p>
         {sourcePublished ? (
-          <a href={APP_REPO} target="_blank" rel="noreferrer noopener" className={`mt-4 ${ACTION}`}>
+          <a href={APP_REPO} target="_blank" rel="noreferrer noopener" className={`mt-4 ${SECONDARY}`}>
             Build it from source
             <span className="sr-only"> (opens in a new tab)</span>
           </a>
         ) : (
-          <p className="mt-4 text-caption leading-relaxed text-muted">
+          <p className="mt-4 text-caption text-pretty text-muted">
             The source is not on GitHub yet either, so there is nothing to link to. It goes up with the
             release.
           </p>
         )}
-        <p className="mt-3 text-caption leading-relaxed text-muted">
+        <p className="mt-3 text-caption text-pretty text-muted">
           Verified on Windows. macOS and Linux are configured but never run.
         </p>
       </div>
@@ -307,20 +314,21 @@ function AppResult({ platform }: { platform: PlatformId | null }) {
       {ordered.map((download, index) => {
         const yours = index === 0 && download.id === platform
         return (
-          <div key={download.id} className="border-b border-line px-5 py-4 last:border-b-0">
-            <div className="flex items-baseline justify-between gap-3">
-              <span className="font-mono text-body font-medium text-ink">{download.label}</span>
-              <span className="text-caption tabular-nums text-muted">
+          <div key={download.id} className={ROW}>
+            <div className={HEAD}>
+              {/* Sans: a platform's name is a word, not machine text. */}
+              <span className="min-w-0 text-body font-semibold text-ink">{download.label}</span>
+              <span className="ml-auto text-caption tabular-nums text-muted">
                 {download.sizeMb ? `${download.sizeMb} MB` : '—'}
               </span>
             </div>
             <p className="mt-1 text-caption text-muted">{download.format}</p>
-            <p className="mt-1 text-caption leading-relaxed text-muted">{download.note}</p>
+            <p className="mt-1 max-w-[34rem] text-caption text-pretty text-muted">{download.note}</p>
             {download.released && !download.verified && (
               <p className="mt-1.5 text-caption text-bad">Built but never run on this platform</p>
             )}
             {download.released ? (
-              <a href={downloadUrl(download.file)} className={`mt-3.5 ${yours ? PRIMARY : ACTION}`}>
+              <a href={downloadUrl(download.file)} className={`mt-3.5 ${yours ? PRIMARY : SECONDARY}`}>
                 Download {download.label}
               </a>
             ) : (
@@ -331,13 +339,8 @@ function AppResult({ platform }: { platform: PlatformId | null }) {
           </div>
         )
       })}
-      <p className="px-5 py-2">
-        <a
-          href={APP_RELEASES}
-          target="_blank"
-          rel="noreferrer noopener"
-          className="inline-flex min-h-11 items-center rounded-sm text-caption text-muted underline decoration-line-bright underline-offset-4 transition-colors hover:text-ink hover:decoration-ink focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-ink"
-        >
+      <p className="border-t border-line px-4 py-1 sm:px-5">
+        <a href={APP_RELEASES} target="_blank" rel="noreferrer noopener" className={TEXT_LINK}>
           All releases and checksums
           <span className="sr-only"> (opens in a new tab)</span>
         </a>
@@ -356,40 +359,51 @@ function FilesResult({ target, playing }: { target: Target; playing: Playing }) 
   return (
     <>
       {assets.map((asset) => (
-        <div key={asset.name} className={`border-b border-line px-5 py-4 last:border-b-0 ${asset.lazy ? 'bg-panel' : ''}`}>
-          <div className="flex items-baseline justify-between gap-3">
-            <span className="font-mono text-body font-medium text-ink">{asset.name}</span>
+        // A file fetched only when a stream opens sits on a tint, set apart from what every page load costs.
+        <div key={asset.name} className={`${ROW} ${asset.lazy ? STRIP : ''}`}>
+          <div className={HEAD}>
+            {/* A file name has no spaces to wrap at, so it may break anywhere. */}
+            <span className="min-w-0 font-mono text-[0.9375rem] font-medium text-ink [overflow-wrap:anywhere]">
+              {asset.name}
+            </span>
             {/* The gzip figure leads on size, not on colour: it is a measurement
                 taken once, not a reading that is changing. */}
-            <span className="grid justify-items-end text-body tabular-nums text-ink">
+            <span className="ml-auto grid justify-items-end text-body font-medium tabular-nums text-ink">
               {kb(asset.gzip)}
-              <span className="text-micro text-muted">{kb(asset.raw)} raw</span>
+              <span className="text-micro font-normal text-muted">{kb(asset.raw)} raw</span>
             </span>
           </div>
           <p className="mt-1 text-caption text-muted">{asset.place}</p>
-          <p className="mt-1 text-caption leading-relaxed text-muted">{asset.what}</p>
+          <p className="mt-1 max-w-[34rem] text-caption text-pretty text-muted">{asset.what}</p>
           {asset.href && (
             <a
               href={asset.href}
               download={asset.href.startsWith('http') ? undefined : ''}
-              className={`mt-3.5 ${ACTION}`}
+              className={`mt-3.5 ${SECONDARY}`}
             >
-              {asset.href.startsWith('http') ? 'Open on the CDN' : `Download ${asset.name}`}
+              {asset.href.startsWith('http') ? (
+                <>
+                  Open on the CDN
+                  {/* Two of these can sit in one list, so each says which file
+                      it opens; the words on screen stay the start of the name. */}
+                  <span className="sr-only"> ({asset.name})</span>
+                </>
+              ) : (
+                `Download ${asset.name}`
+              )}
             </a>
           )}
         </div>
       ))}
 
-      {/* No rule of its own: the last file row's bottom border already draws
-          one here, and the two together made a 2px line. */}
-      <dl className="px-5 py-4">
+      <dl className="border-t border-line px-4 py-3 sm:px-5">
         <div className="flex items-baseline justify-between gap-3 py-1">
           <dt className="text-caption text-muted">On every page load</dt>
-          <dd className="text-figure font-semibold tabular-nums text-ink">{kb(upfront)}</dd>
+          <dd className="text-figure tabular-nums text-ink">{kb(upfront)}</dd>
         </div>
         <div className="flex items-baseline justify-between gap-3 py-1">
           <dt className="text-caption text-muted">Only when a stream opens</dt>
-          <dd className={deferred ? 'text-figure font-semibold tabular-nums text-ink' : 'text-caption text-muted'}>
+          <dd className={deferred ? 'text-figure tabular-nums text-ink' : 'text-caption text-muted'}>
             {deferred ? kb(deferred) : 'nothing'}
           </dd>
         </div>
@@ -402,8 +416,8 @@ function Snippet({ target }: { target: Target }) {
   const snippet = SNIPPETS[target]
   return (
     <div className="grid gap-3">
-      <div className="overflow-hidden rounded-xl border border-line bg-panel">
-        <p id="snippet-label" className="border-b border-line px-5 py-3 text-caption font-medium text-ink">
+      <div className={TILE}>
+        <p id="snippet-label" className="px-4 pt-4 pb-3 text-body font-semibold text-ink sm:px-5">
           {snippet.label}
         </p>
         {/* Scrollable, so it has to be reachable by keyboard - a region a mouse
@@ -412,24 +426,30 @@ function Snippet({ target }: { target: Target }) {
           tabIndex={0}
           role="region"
           aria-labelledby="snippet-label"
-          className="overflow-x-auto px-5 py-4 font-mono text-caption leading-relaxed text-ink focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-ink"
+          // Forced colours drop the strip's tint, so there it gets rules above
+          // and below to stay a block of its own inside the tile.
+          className={`overflow-x-auto ${STRIP} px-4 py-4 font-mono text-[0.8125rem] leading-[1.65] text-ink forced-colors:border-y sm:px-5 ${FOCUS_INSET}`}
         >
           <code>{snippet.code}</code>
         </pre>
-        <p className="border-t border-line px-5 py-3 text-caption leading-relaxed text-muted">{snippet.note}</p>
+        <p className="px-4 py-3.5 text-caption text-pretty text-muted sm:px-5">{snippet.note}</p>
       </div>
 
-      <p className="text-micro text-muted">Sizes measured from the files above on {MEASURED_AT}, not typed in.</p>
+      <p className="px-1 text-micro text-muted">Sizes measured from the files above on {MEASURED_AT}, not typed in.</p>
     </div>
   )
 }
 
+/*
+ * The answer, as one tile. Its first child is the heading row and stays a `p`;
+ * every file or download after it is a `div` of its own, directly inside.
+ */
 function Manifest({ title, count, children }: { title: string; count: string; children: React.ReactNode }) {
   return (
-    <div className="overflow-hidden rounded-xl border border-line bg-ground" aria-live="polite">
-      <p className="flex items-baseline justify-between gap-3 border-b border-line px-5 py-3 text-caption">
-        <span className="font-medium text-ink">{title}</span>
-        <span className="tabular-nums text-muted">{count}</span>
+    <div className={TILE} aria-live="polite">
+      <p className={`${HEAD} px-4 pt-4 pb-3 sm:px-5 sm:pt-5`}>
+        <span className="min-w-0 text-title text-ink">{title}</span>
+        <span className="ml-auto text-caption tabular-nums text-muted">{count}</span>
       </p>
       {children}
     </div>
