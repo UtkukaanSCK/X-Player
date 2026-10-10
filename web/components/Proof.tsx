@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { motion, useReducedMotion, useScroll, useTransform } from 'motion/react'
 import { XPlayer } from 'x-player'
 import 'x-player/style.css'
@@ -307,6 +307,7 @@ export function Proof() {
               detail={current.detail}
               unavailable={status.kind === 'unavailable' ? status.reason : null}
               pending={status.kind === 'pending'}
+              afterGate={consented}
               onPick={(next) => {
                 change(next)
               }}
@@ -407,20 +408,89 @@ function Panel({
   )
 }
 
+/* Keys that scroll the page when the focused element does not use them itself. */
+const SCROLL_KEYS = new Set([' ', 'PageUp', 'PageDown', 'Home', 'End', 'ArrowUp', 'ArrowDown'])
+
 function Controls({
   mode,
   detail,
   unavailable,
   pending,
+  afterGate,
   onPick,
 }: {
   mode: NetworkMode
   detail: string
   unavailable: string | null
   pending: boolean
+  /** These controls took the place of the consent gate the visitor pressed. */
+  afterGate: boolean
   onPick: (mode: NetworkMode) => void
 }) {
   const buttons = useRef<(HTMLButtonElement | null)[]>([])
+  const group = useRef<HTMLDivElement>(null)
+  const notice = useRef<HTMLParagraphElement>(null)
+
+  /*
+   * Focus is owed to whoever pressed the consent gate.
+   *
+   * These controls mount where the gate was, and the button that had focus
+   * goes with it, so a key press on it left focus on <body> and a screen
+   * reader was told nothing about what had appeared. The debt is paid once:
+   * to the chosen option when it can be pressed, to the alert when there is
+   * nothing to press. While the throttle is still starting the options are
+   * disabled and cannot take focus, so the group holds it until they can.
+   *
+   * It is only paid while nobody else has focus - a visitor who has moved on
+   * keeps where they went - and without the gate it is never owed, so an
+   * ordinary visit has nothing taken from it.
+   *
+   * It is also forgiven the moment the visitor goes anywhere of their own
+   * accord: a click, or any scrolling. Paid regardless, it pulled the page
+   * back to the controls - 1456px on a phone - from wherever they had got to.
+   * Scrolling that raises no event of its own, such as a dragged scrollbar,
+   * is caught when the debt falls due, because the controls are off screen.
+   */
+  const owed = useRef(afterGate)
+
+  useEffect(() => {
+    if (!owed.current) return
+    const types = ['pointerdown', 'wheel', 'touchmove', 'keydown'] as const
+    function forgive(event: Event) {
+      if (event instanceof KeyboardEvent && !SCROLL_KEYS.has(event.key)) return
+      owed.current = false
+      stop()
+    }
+    function stop() {
+      for (const type of types) window.removeEventListener(type, forgive, true)
+    }
+    for (const type of types) window.addEventListener(type, forgive, { capture: true, passive: true })
+    return stop
+  }, [])
+
+  /*
+   * A layout effect, so focus moves in the same task as the change behind it.
+   * As a passive effect it ran a few milliseconds later, and by then the
+   * element that had focus could already be gone and focus left on <body>.
+   * Nothing here scrolls: the controls are where the gate was.
+   */
+  useLayoutEffect(() => {
+    if (!owed.current) return
+    const held = document.activeElement
+    const box = (group.current ?? notice.current)?.getBoundingClientRect()
+    const offScreen = !box || box.bottom <= 0 || box.top >= innerHeight
+    if ((held && held !== document.body && held !== group.current) || offScreen) {
+      owed.current = false
+      return
+    }
+    if (pending) {
+      group.current?.focus({ preventScroll: true })
+      return
+    }
+    owed.current = false
+    if (unavailable) notice.current?.focus({ preventScroll: true })
+    else buttons.current[MODES.findIndex((m) => m.id === mode)]?.focus({ preventScroll: true })
+  }, [pending, unavailable, mode])
 
   /*
    * Arrow keys move and choose, and only the chosen option is a tab stop.
@@ -445,8 +515,10 @@ function Controls({
     // really be degraded, the page says so and offers nothing to press.
     return (
       <p
+        ref={notice}
         role="alert"
-        className="mx-auto max-w-2xl rounded-note bg-bad/8 px-4 py-3 text-center text-caption text-ink ring-1 ring-bad/40 ring-inset"
+        tabIndex={-1}
+        className={`mx-auto max-w-2xl rounded-note bg-bad/8 px-4 py-3 text-center text-caption text-ink ring-1 ring-bad/40 ring-inset ${FOCUS}`}
       >
         The connection cannot be throttled here, so there is nothing honest to show. {unavailable}
       </p>
@@ -470,9 +542,15 @@ function Controls({
         a system border and the chosen side the system highlight.
       */}
       <div
+        ref={group}
         role="radiogroup"
         aria-label="Connection"
-        className="grid w-full max-w-[22rem] grid-cols-2 gap-1 rounded-full bg-panel p-1 forced-colors:border forced-colors:border-[ButtonText]"
+        // Never a tab stop, but focusable: it holds the focus the gate hands
+        // over while its options are disabled (see `owed`), and keeps it if
+        // the visitor goes elsewhere before they are enabled - made
+        // unfocusable then, it dropped that focus to <body>.
+        tabIndex={-1}
+        className={`grid w-full max-w-[22rem] grid-cols-2 gap-1 rounded-full bg-panel p-1 forced-colors:border forced-colors:border-[ButtonText] ${FOCUS}`}
       >
         {MODES.map((m, index) => {
           const on = mode === m.id
