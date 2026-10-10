@@ -275,6 +275,119 @@ check(
   invisible.length ? JSON.stringify(invisible.slice(0, 4)) : `${reached.size} controls, all on screen`,
 )
 
+/* ------------------------------------------- focus never lands under the header */
+
+/*
+ * WCAG 2.4.11 (Focus Not Obscured). The header is fixed, so a control the
+ * browser scrolls into view can end up behind it. Tab forward through the page,
+ * then Shift+Tab back through it, and refuse any control whose box starts above
+ * the header's bottom edge. The header's own links are exempt: they sit in it.
+ *
+ * Each direction asserts that it reached enough controls, and the header is
+ * confirmed to be fixed or sticky and tall; a tour of a static header, or of
+ * nothing, would pass for the wrong reason.
+ */
+async function tourUnderHeader(direction, steps) {
+  const key = direction === 'back' ? 'Shift+Tab' : 'Tab'
+  // Every tour starts from a known place, not from wherever the last one ended.
+  // Blurring is not enough: the browser keeps its place in the tab order at the
+  // element that lost focus. So a marker that is not itself a tab stop is put
+  // at the head of the page (forward) or at its foot (back) and focused, which
+  // makes the first press land on the first or the last control.
+  await page.evaluate((toFoot) => {
+    document.activeElement?.blur()
+    const marker = document.createElement('span')
+    marker.id = 'tour-start'
+    marker.tabIndex = -1
+    marker.style.cssText = 'display:block;height:1px'
+    if (toFoot) document.body.append(marker)
+    else document.body.prepend(marker)
+    marker.focus()
+  }, direction === 'back')
+  await page.waitForTimeout(300)
+  let first = null
+  const hidden = []
+  const reached = new Set()
+  let left = 0
+  for (let i = 0; i < steps; i += 1) {
+    await page.keyboard.press(key)
+    // A margin, not a need: measured at 0, 150 and 1000 ms, nothing differed.
+    await page.waitForTimeout(150)
+    const at = await page.evaluate(() => {
+      const el = document.activeElement
+      if (!el || el === document.body || el === document.documentElement) return null
+      const header = document.querySelector('header:has(nav[aria-label="Site"])')
+      const box = el.getBoundingClientRect()
+      return {
+        tag: el.tagName.toLowerCase(),
+        label: (el.getAttribute('aria-label') ?? el.textContent ?? '').trim().slice(0, 30),
+        top: Math.round(box.top * 10) / 10,
+        headerBottom: header ? Math.round(header.getBoundingClientRect().bottom * 10) / 10 : 0,
+        inHeader: Boolean(header?.contains(el)),
+        // Taller than the room under the header: it cannot start below it.
+        oversize: box.height > window.innerHeight - 96,
+      }
+    })
+    if (!at) {
+      left = i + 1
+      break
+    }
+    if (at.tag === 'nextjs-portal') continue
+    first ??= at
+    if (at.inHeader || at.oversize) continue
+    reached.add(`${at.tag}:${at.label}`)
+    if (at.top < at.headerBottom - 0.5) hidden.push(at)
+  }
+  await page.evaluate(() => document.getElementById('tour-start')?.remove())
+  return { hidden, reached: reached.size, left, first }
+}
+
+for (const width of [1440, 390]) {
+  await setScheme('light')
+  await page.setViewportSize({ width, height: width === 390 ? 844 : 900 })
+  await page.evaluate(() => window.scrollTo(0, 0))
+  await page.waitForTimeout(600)
+
+  const header = await page.evaluate(() => {
+    const el = document.querySelector('header:has(nav[aria-label="Site"])')
+    if (!el) return null
+    const style = getComputedStyle(el)
+    return { position: style.position, height: el.getBoundingClientRect().height }
+  })
+  check(
+    `focus tour (${width}px): the header is fixed and has height`,
+    header !== null && ['fixed', 'sticky'].includes(header.position) && header.height > 0,
+    JSON.stringify(header),
+  )
+
+  const forward = await tourUnderHeader('forward', 45)
+  check(
+    `focus tour (${width}px): the first Tab lands on the first control, the brand link in the header`,
+    forward.first?.tag === 'a' && forward.first.inHeader,
+    JSON.stringify(forward.first),
+  )
+  check(`focus tour (${width}px): Tab reached controls`, forward.reached >= 6, `${forward.reached} controls${forward.left ? `, focus left the document after ${forward.left} steps` : ''}`)
+  check(
+    `Tab never leaves focus under the header at ${width}px`,
+    forward.hidden.length === 0,
+    forward.hidden.length ? JSON.stringify(forward.hidden.slice(0, 3)) : `${forward.reached} controls, all below it`,
+  )
+
+  const back = await tourUnderHeader('back', 45)
+  check(
+    `focus tour (${width}px): the first Shift+Tab lands on the last control, the GitHub link`,
+    Boolean(back.first && !back.first.inHeader && back.first.label.includes('GitHub')),
+    JSON.stringify(back.first),
+  )
+  check(`focus tour (${width}px): Shift+Tab reached controls`, back.reached >= 6, `${back.reached} controls${back.left ? `, focus left the document after ${back.left} steps` : ''}`)
+  check(
+    `Shift+Tab never leaves focus under the header at ${width}px`,
+    back.hidden.length === 0,
+    back.hidden.length ? JSON.stringify(back.hidden.slice(0, 3)) : `${back.reached} controls, all below it`,
+  )
+}
+await page.setViewportSize({ width: 1440, height: 900 })
+
 /* ------------------------------------------- overflow, five sizes, both schemes */
 
 for (const scheme of SCHEMES) {
