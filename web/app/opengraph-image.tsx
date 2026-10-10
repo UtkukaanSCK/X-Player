@@ -111,8 +111,8 @@ export default function OpengraphImage() {
             lineHeight: '76px',
           }}
         >
-          <div>A bad connection,</div>
-          <div>shown rather than described.</div>
+          <div>X-Player, on a</div>
+          <div>throttled connection.</div>
         </div>
 
         {/*

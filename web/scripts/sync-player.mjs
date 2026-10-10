@@ -58,7 +58,11 @@ const measure = (file) => {
   return { raw: bytes.length, gzip: gzipSync(bytes, { level: 9 }).length }
 }
 
+/* The player's own version, so the page names the one it is running. */
+const { version } = JSON.parse(readFileSync(resolve(import.meta.dirname, '../../package.json'), 'utf8'))
+
 const files = {
+  version,
   embed: measure(resolve(PUBLIC, 'embed/x-player.iife.js')),
   hls: measure(resolve(PUBLIC, 'embed/hls.min.js')),
   libJs: measure(resolve(PUBLIC, 'lib/x-player.es.js')),
@@ -72,6 +76,6 @@ writeFileSync(SIZES, JSON.stringify(files, null, 2) + '\n')
 const kb = (n) => (n / 1024).toFixed(1).padStart(7) + ' kB'
 console.log(`player synced from ${FROM}`)
 for (const [key, value] of Object.entries(files)) {
-  if (key === 'measuredAt') continue
+  if (key === 'measuredAt' || key === 'version') continue
   console.log(`  ${key.padEnd(7)} ${kb(value.raw)} raw  ${kb(value.gzip)} gzip`)
 }

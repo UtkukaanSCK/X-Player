@@ -10,6 +10,7 @@ import { REVEAL_EASE, useRevealProgress } from '@/lib/reveal'
 import { useReading } from '@/hooks/useReading'
 import { POSTER } from '@/lib/poster'
 import { withBase } from '@/lib/site'
+import sizes from '@/lib/generated/sizes.json'
 import { FRAME, PROOF_BOX, ProofHeading, SCREEN } from './ProofHeading'
 import { Readout } from './Readout'
 import { FOCUS, PRIMARY_LG } from './ui'
@@ -36,8 +37,9 @@ const SMALL_CLIP = withBase('/media/demo-480.mp4')
  * The id stays `slow3g` because the worker and its stored mode use it, and
  * renaming a persisted value to tidy a label is not worth the migration.
  */
+const NORMAL_KBPS = 34
 const MODES: { id: NetworkMode; label: string; detail: string }[] = [
-  { id: 'normal', label: 'Normal', detail: '34 kB/s — comfortably above the 24 kB/s the clip needs' },
+  { id: 'normal', label: 'Normal', detail: `${NORMAL_KBPS} kB/s — comfortably above the 24 kB/s the clip needs` },
   { id: 'slow3g', label: 'Slow 2G', detail: '8 kB/s — a third of what the clip needs, to both of them' },
 ]
 
@@ -50,10 +52,9 @@ const MODES: { id: NetworkMode; label: string; detail: string }[] = [
  * watching the two panels for ten seconds.
  */
 const VERDICT: Record<NetworkMode, string> = {
-  // A no-break space before the dash, so a wrapped line never starts with it.
-  normal: 'Both play. Same file, same speed, same result\u00a0— as you would hope.',
+  normal: `Both keep playing at ${NORMAL_KBPS} kB/s. Switch to Slow 2G to see what each one does when the data runs short.`,
   slow3g:
-    'Both crawl at the same rate, and both show they are waiting. No player can pull a 24 kB/s clip through a link a third that wide. Watch the buffer figures fall towards zero.',
+    'Both crawl at the same rate, and both show they are waiting. No player can pull a 24 kB/s clip through a link a third that wide. Watch Ahead fall towards zero.',
 }
 
 export function Proof() {
@@ -246,7 +247,7 @@ export function Proof() {
                   A plain <span className="font-mono text-[0.92em]">&lt;video&gt;</span>
                 </>
               }
-              subtitle="What most sites ship"
+              subtitle="The browser's own controls"
               tone="bad"
               reading={bareReading}
             >
@@ -274,7 +275,7 @@ export function Proof() {
             <Panel
               id="panel-xplayer"
               title="X-Player"
-              subtitle="The same file, the same link"
+              subtitle={`Version ${sizes.version}`}
               tone="good"
               reading={playerReading}
             >
@@ -586,8 +587,8 @@ function Controls({
       {/* Every line in this column is height the two videos above it cannot
           have, so it is one line wherever the column allows. */}
       <p className="mt-1 max-w-[46rem] text-center text-caption text-balance text-muted">
-        This page throttles its own connection with a service worker. Both players get the same bytes at the
-        same moment.
+        X-Player is a video player for web pages. This page slows its own connection with a service worker, so
+        both players get the same bytes at the same moment.
       </p>
     </div>
   )

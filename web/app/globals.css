@@ -134,7 +134,7 @@
   --text-figure--line-height: 1.2;
   --text-figure--letter-spacing: -0.012em;
   --text-figure--font-weight: 600;
-  --text-section: clamp(2rem, 1.4rem + 2.4vw, 3rem);
+  --text-section: clamp(1.75rem, 1.4rem + 1.2vw, 2.25rem); /* 28 @390, 32 @768, 36 from ~1200 */
   --text-section--line-height: 1.08;
   --text-section--letter-spacing: -0.02em;
   --text-section--font-weight: 600;
@@ -207,7 +207,7 @@
   --header-h: 3rem; /* 48px */
   --gutter: clamp(1rem, 5vw, 2.5rem); /* 16 @320, 19.5 @390, 38.4 @768, 40 from 800 */
   --page-max: 72rem; /* 1152px: header, proof column cap, GetIt, footer */
-  --section-y: clamp(4.5rem, 3rem + 6vw, 8.5rem); /* 72 @390, 94 @768, 109 @1024, 134 @1440 */
+  --section-y: clamp(3.5rem, 2.5rem + 4vw, 6rem); /* 56 @390, 71 @768, 96 from ~1400 */
   /* Everything in the pinned box but the heading and the videos; see .proof-column. */
   --proof-allowance: 30rem;
 }

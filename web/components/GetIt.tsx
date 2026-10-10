@@ -2,7 +2,7 @@
 
 import { useRef, useState, useSyncExternalStore } from 'react'
 
-import { assetsFor, MEASURED_AT, SNIPPETS, type Playing, type Target, type Use } from '@/lib/downloads'
+import { assetsFor, EMBED_GZIP, MEASURED_AT, SNIPPETS, type Playing, type Target, type Use } from '@/lib/downloads'
 import {
   APP_REPO,
   APP_RELEASES,
@@ -30,9 +30,11 @@ import { FOCUS_INSET, PRIMARY, SECONDARY, TEXT_LINK } from './ui'
  * this player and only shows if the page takes things away.
  */
 
+const kb = (bytes: number) => `${(bytes / 1024).toFixed(1)} kB`
+
 const USES: { id: Use; label: string; hint: string }[] = [
-  { id: 'watch', label: 'Watch files on my computer', hint: 'MKV, AVI, HEVC — the desktop app' },
-  { id: 'embed', label: 'Put a player on my site', hint: 'The library, as small as it goes' },
+  { id: 'watch', label: 'Watch files on my computer', hint: 'The desktop app. Plays MKV, AVI and HEVC.' },
+  { id: 'embed', label: 'Put a player on my site', hint: `The drop-in script is ${kb(EMBED_GZIP)} gzipped` },
 ]
 
 const TARGETS: { id: Target; label: string; hint: string }[] = [
@@ -45,8 +47,6 @@ const PLAYING: { id: Playing; label: string; hint: string }[] = [
   { id: 'files', label: 'MP4 or WebM files', hint: 'Video you host' },
   { id: 'stream', label: 'An HLS stream', hint: '.m3u8, live or on demand' },
 ]
-
-const kb = (bytes: number) => `${(bytes / 1024).toFixed(1)} kB`
 
 /*
  * A borderless tile on the band. Under more contrast it gets the edge a control
@@ -106,7 +106,7 @@ export function GetIt() {
     >
       <div className="mx-auto w-full max-w-(--page-max)">
         <h2 id="get-heading" className="max-w-3xl text-section text-balance text-ink">
-          Take only what you need.
+          Get X-Player
         </h2>
 
         {/*
@@ -288,8 +288,8 @@ function AppResult({ platform }: { platform: PlatformId | null }) {
     return (
       <div className="border-t border-line px-4 py-5 sm:px-5">
         <p className="text-body text-ink">
-          Not released yet. It builds and runs — the Windows installer is {DOWNLOADS[0].sizeMb} MB and has been
-          produced and used — but nothing has been published to download.
+          Not released yet. It builds and runs. The Windows installer ({DOWNLOADS[0].sizeMb} MB) has been built
+          and used, but nothing has been published to download yet.
         </p>
         {sourcePublished ? (
           <a href={APP_REPO} target="_blank" rel="noreferrer noopener" className={`mt-4 ${SECONDARY}`}>

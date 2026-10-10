@@ -44,17 +44,19 @@ const Proof = dynamic(() => import('./Proof').then((m) => m.Proof), {
           </div>
           {/*
             The bottom padding stands in for everything under the frames:
-            captions, readings, the connection control and the verdict. Their
-            height follows where the sentences wrap, so it is held in steps,
-            each measured against the real section (Archivo, Chromium): from
-            367 to 412px under 25rem, 323 to 347 up to 45rem, 290 to 308 up to
-            56rem, where the verdict is two lines, and 325 to 341 beyond. The
-            steps keep the heading within about 10px of where the comparison
-            puts it, at the sizes that pin.
+            captions, readings, the connection control, the method line and the
+            verdict. Their height follows where those sentences wrap, so it is
+            held in steps, each measured against the real section (Archivo,
+            Chromium, widths swept every 20px): 365px under 23.75rem, 335px up
+            to 26rem, 305px up to 41rem, 278px up to 51.25rem, 286px beyond.
+            Inside a step the real height moves by up to about 20px when a
+            sentence takes another line, and the centred heading moves half of
+            that, so the steps keep it within about 10px of where the
+            comparison puts it, at the sizes that pin.
           */}
           <p
             role="status"
-            className="pt-3 pb-[21.5rem] text-center text-caption text-muted min-[25rem]:pb-[19rem] min-[45rem]:pb-[16.75rem] min-[56rem]:pb-[19rem]"
+            className="pt-3 pb-[22.8rem] text-center text-caption text-muted min-[23.75rem]:pb-[20.9rem] min-[26rem]:pb-[19rem] min-[41rem]:pb-[17.4rem] min-[51.25rem]:pb-[17.9rem]"
           >
             Preparing the comparison…
           </p>

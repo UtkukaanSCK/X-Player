@@ -17,17 +17,25 @@ import { PRIMARY_LG } from './ui'
 export function Source() {
   return (
     <section id="source" aria-labelledby="source-heading" className="px-(--gutter) py-(--section-y)">
-      <div className="mx-auto max-w-[40rem] text-center">
+      <div className="mx-auto w-full max-w-(--page-max)">
         <h2 id="source-heading" className="text-section text-balance text-ink">
-          All of it is on GitHub.
+          Source code
         </h2>
 
-        <p className="mx-auto mt-4 max-w-[34rem] text-lead text-pretty text-muted">
-          The player, the throttling worker behind the comparison above, and the tests that keep it honest.
-          MIT licensed, so read it, take it, change it.
+        {/* Paths are machine text, so they are mono; `wbr` lets a long one break at a slash on a narrow screen. */}
+        <p className="mt-4 max-w-[34rem] text-lead text-pretty text-muted">
+          The player is in <Path>src/player</Path>. The throttle behind the comparison is one service worker,{' '}
+          <Path>
+            web/
+            <wbr />
+            public/
+            <wbr />
+            x-player-netsim-sw.js
+          </Path>
+          . The browser tests that check this page are in <Path>web/e2e</Path>. MIT licence.
         </p>
 
-        <div className="mt-8 flex flex-col items-center gap-3">
+        <div className="mt-8 flex flex-col items-start gap-3">
           <a href={REPO_URL} target="_blank" rel="noreferrer noopener" className={PRIMARY_LG}>
             <GitHubMark />
             View on GitHub
@@ -46,6 +54,10 @@ export function Source() {
       </div>
     </section>
   )
+}
+
+function Path({ children }: { children: React.ReactNode }) {
+  return <span className="font-mono text-[0.88em] tracking-normal [overflow-wrap:anywhere]">{children}</span>
 }
 
 /* Drawn in the text colour, so forced colours repaint it with the label. */

@@ -28,7 +28,7 @@ export function ProofHeading() {
         two ranks for no reason a reader could name.
       */}
       <h1 id="proof-heading" className="text-hero text-balance text-ink">
-        A bad connection, shown rather than described.
+        X-Player, on a throttled connection.
       </h1>
     </header>
   )

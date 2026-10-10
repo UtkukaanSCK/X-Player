@@ -31,6 +31,9 @@ export const CDN_BASE = 'https://cdn.jsdelivr.net/gh/UtkukaanSCK/X-Player@v1.0.0
 
 export const MEASURED_AT = sizes.measuredAt
 
+/** The drop-in script's gzip weight, in bytes, as measured. */
+export const EMBED_GZIP = sizes.embed.gzip
+
 const FILES = {
   embed: withBase('/downloads/embed/x-player.iife.js'),
   hls: withBase('/downloads/embed/hls.min.js'),
@@ -47,7 +50,7 @@ export function assetsFor(target: Target, playing: Playing): Asset[] {
         name: 'x-player.iife.js',
         href: FILES.embed,
         place: 'Anywhere your page can link to',
-        what: 'The player, its renderer and its styles in one file. No build step, no stylesheet to remember.',
+        what: 'The player, its renderer and its styles in one file, so there is no stylesheet to add.',
         raw: sizes.embed.raw,
         gzip: sizes.embed.gzip,
       },
@@ -57,7 +60,7 @@ export function assetsFor(target: Target, playing: Playing): Asset[] {
         name: 'hls.min.js',
         href: FILES.hls,
         place: 'Beside the file above',
-        what: 'The streaming engine. The player looks for it next to itself and loads it the first time an HLS source opens — never before.',
+        what: 'The streaming engine. The player looks for it next to itself and loads it the first time an HLS source opens, and not before.',
         raw: sizes.hls.raw,
         gzip: sizes.hls.gzip,
         lazy: true,
@@ -72,7 +75,7 @@ export function assetsFor(target: Target, playing: Playing): Asset[] {
         name: 'x-player.es.js',
         href: FILES.libJs,
         place: 'Imported by your app',
-        what: 'The ES module. React and react-dom stay yours — they are peer dependencies, not copies.',
+        what: 'The ES module. React and react-dom come from your app; they are peer dependencies.',
         raw: sizes.libJs.raw,
         gzip: sizes.libJs.gzip,
       },
@@ -134,7 +137,7 @@ export const SNIPPETS: Record<Target, { label: string; code: string; note: strin
     title: 'Product tour'
   })
 </script>`,
-    note: 'No build step. The renderer and the styles are inside the one file you just took.',
+    note: 'Styles and renderer are inside x-player.iife.js. There is no CSS file to add.',
   },
   react: {
     label: 'Then, in your component',
